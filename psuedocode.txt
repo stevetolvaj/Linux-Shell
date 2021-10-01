@@ -1,0 +1,449 @@
+Steve Tolvaj
+CIS_3207-001
+Project 2 – Part A
+9/30/2021
+
+// The following functions will be stored in myshell.c and will include to pseudocode
+// to read from stdin or from a batch file. They will then be parsed and checked for any
+// special commands, i.e. >, >>, <, |, and &. They will then be sent to the corresponding
+// function to handle redirection or piping.
+
+//******************************************************************************
+//*************************** utility.c ****************************************
+//******************************************************************************
+
+/**
+ * The main function will be the deciding factor on if a batch file is read or if user input is read.
+**/
+
+global variable char *ENVIROMENT_VARS[]
+
+int main (number of command line args, command line args, environment variables)
+	-set SHELL environment variable and PWD to current.
+	-set ENVIROMENT_VARS to environment variables from above args.
+	
+	if (argc == 1) {
+		// use line by line input. Send to start prompt function.
+		prompt()
+	} else if (argc == 2) {	
+		// read different batch files in read batch file function.	
+		readBatch(filename)
+	} else {
+		// error message or ignore other vars.
+	}
+}
+
+
+/**
+ * The prompt function will prompt user with “<current directory>myshell> ” each time and send the input to the parser. 
+**/
+Prompt() {
+	while(!“exit”) {	// Continue running until user types exit/quit or ctrl+c.
+		Print "<getcwd(PWD)>myshell> "
+		parser(getline())	// Get line from stdin and send to parser function.
+	}
+}
+
+
+/**
+ * Read batch file will read and execute any commands found in the file line by line.
+**/
+readBatch(filename) {
+	open filename
+	
+	// Using getline() function
+	while (!end of file) {
+		if (length of chars == 0) {
+			continue // read next line if current line was blank.
+		}
+		parser(file input from getline) // Send to parser function to continue program.
+	}
+}
+
+
+/**
+ * The parser function will parse the string/line and send the parsed array of arguments to the checkCommands function.
+**/
+parser(char array) {
+
+	char **args		// May need different way to dynamically allocate memory for args.
+	
+	*args = strtok(array, " ")	// split the array passed in.
+	
+	// Use strtok to split the line up by spaces and trim what is found and store in char array of strings.
+	do {
+		*args++
+		*args = strtok (NULL, " ") // Allow last null to be stored for use in execv/execvp.
+	} while (strtok does not return null into buffer)
+	
+	// Send to checkCommands() function to check for ">", ">>", "<","|","&", and built ins..
+	checkCommands(**args)
+}
+
+
+/**
+ * The checkCommands will check if the array of string args contains the special commands ">", ">>", "<", "|".
+**/
+checkCommands(char **args) {
+	
+	int i = 0;
+	char **temp1 // Store any command args found before the special commands.
+	char **temp2 // Store any command args found after the special commands.
+	int redirectType;  // Used to store type of redirection i.e. 0 for '>', 1 for '>>', 2 for '<'.
+	
+	while (*args[i] != NULL) {
+		// Check if any special commands are present using strcmp.
+		if(string contains >) {
+			Store what is before ">"  in temp1.
+			Send the output to redirect function, filename found after the location of ">" stored in temp2.
+			Send with redirect type 0.
+		} else if (string contains >>) {
+			Store what is before ">>" and store in temp1.
+			Send the output to redirect function, filename found after the location of ">" stored in temp2.
+			Send with redirect type 1.
+		} else if (String contains "<") {
+			Store what is before "<" in temp1.
+			Send the output to redirect function, filename found after the location of "<" stored in temp2.
+			Send with redirect type 2.
+		} else if (String contains "|") {
+			Save before "|" in temp1.
+			Save after "|" in temp2.
+			Send to pipe function.
+		} else {
+			Send to executeChild(**args) function.
+		}
+	}
+}
+
+/**
+ * EXECING: The executeChild function will execute commands in a child process and wait until complete if "&" is found at last position.
+**/
+executeChild(char **args) {
+
+	int checkWait(args); // Check if wait should be called and remove ampersand if so.
+	
+	// ****** Check if command is built in here with checkBuilt, if it is no need to fork ******
+	
+	// Start fork.
+	int rc = fork() 
+	
+	// Check for succesful fork.
+	if (rc < 0) {
+		print error message.
+	}
+	
+	if (rc == 0) {
+		int result = execvp(args[0], args)
+		
+		// Check for successful execution.
+		if (result == 0) {
+			print error message.
+		}
+	}
+
+	// Wait for completion if needed.
+	if (wait == 1) {
+		wait(NULL)
+	}
+}
+
+/**
+ * REDIRECTION The redirection function will perform the appropriate redirection with file descriptors.
+**/
+
+redirect(char *temp1, char *temp2, int redirectType) {
+	
+	// filename will be in temp2.
+	int fileDescriptor
+	int fileResult;
+	int checkWait(temp1); // Check if wait should be called and remove ampersand if so.
+	
+	
+	if (redirectType == 0) {
+		fileDescriptor = open(temp2, trunc, create, write_only)
+	} 
+	
+	// Same as '>' but without truncation if already existing file.
+	if (redirectType == 1) {
+		fileDescriptor = open(temp2, create, write_only)
+	}
+	
+	if (redirectType == 2) {
+		fileDescriptor = open(temp2, read_only)
+		)
+	}
+	
+	
+	// ****** If it is a built in function it will not fork, wait, or execvp. ******
+	// ****** It will simply run using the same descriptors but with stdout to the correct descriptors. ******
+	
+	
+	if (checkbuilt == 1) {
+		printf will be used after dup2 is called for all built in functions used with redirection.
+	} 
+	
+	// Start child and execvp.
+	int rc = fork()
+	
+	if (rc < 0) {
+        print error.
+    }
+	
+    if(rc == 0) {
+		if (redirectType == 2) {
+			fileResult = dup2(redirect_fd, STDIN_FILENO) == -1
+		} else {
+			fileResult = dup2(redirect_fd, STDOUT_FILENO) == -1
+		}
+        if (fileResult == -1){	// Check if dup2 succeded.
+			// close(redirect_fd) may not be needed
+			print error.
+			return;
+		}
+		
+		close(redirect_fd)
+        execvp(temp1[0], temp1)
+	}
+	
+	if (wait == 1) {
+		wait(NULL) 
+	}   
+}
+ 
+ 
+/**
+ * The checkWait function will check if the last argument is '&' if it is it will replace it with NULL and return 1
+ * to avoid running "&" during execvp calls.
+**/
+int checkWait(char **args) {
+	
+	int wait = 0
+	i = 0
+	
+	// Check for "&" terminating char.
+	while (arg[i++] != null) {
+			if (String compare to "&" == true) {
+				wait = 1
+				arg[i] = NULL // Set to null to avoid running '&' in execvp.
+			}
+		}
+	return wait;
+}
+
+
+/**
+ * The checkBuilt function will execute commands if they are a built in fuction.
+/**
+ char* checkbuilt(**args) {
+	// Check if args[0] is equal to any of the commands below.
+	// Send to the appropriate function in the c file that contains all the built in functions.
+	// Use switch or if/else to strcmp with the following commands:
+	
+	cd
+	clr
+	dir
+	environ
+	echo
+	help
+	pause
+	quit
+	
+	Return 1 if it is built in otherwise return 0.
+ }
+
+
+/**
+ * PIPING The pipe function will accept two sets of args (temp1 and temp2) i.e. temp1 | temp2 to simulate piping in shell.
+**/
+mypipe(**temp1, **temp2) {
+
+	// ****** If it is a built in function it will not fork, wait, or execvp. ******
+	// ****** It will simply run using the same descriptors but but to stdout will be output to the correct descriptors. ******
+	
+	int wait = checkWait(temp2);
+	int pipeDescriptor[]
+	// Check if wait is present before the pipe. this would cause it to be and invalid command.
+	if (checkWait(temp1) == true) {
+		print error and return
+	}
+	
+	// Continue with pipe function if no errors.
+	
+	if(pipe(pipeDescriptor) == -1) {
+		print error and return
+	}
+	
+	int rc1 = fork()
+	
+	if (rc1 < 0) {
+		print error and return.
+	}
+	
+	// work on first set of args.
+	if (rc1 == 0) {
+		dup2(pipeDescriptor[1], STDOUT)
+		close(pipeDescriptor[0])
+		close(pipeDescriptor[1])
+		execvp(temp1[0], temp1)
+	}
+	
+	int rc2 = fork()
+	if (rc2 < 0) {
+		print error and return.
+	}
+	
+	// work on second set of args and read from beginning of pipe.
+	if (rc2 == 0) {
+		dup2(pipeDescriptor[0], STDIN)
+		close(pipeDescriptor[0])
+		close(pipeDescriptor[1])
+		execvp(temp2[0], temp2)
+	}
+	
+	wait for rc1 to complete. Use waitpid()		// wait for first child to finish execution.
+	if (wait == 1) {
+		use waitpid for process 2.
+	}
+	
+	// Close pipe on parent.
+	close(pipeDescriptor[0])
+	close(pipeDescriptor[1])
+}
+
+// The following file will contain all built in functions.
+
+//*************************************************************************************************************************
+//*************************** Built in commands located in seperate file utility.c ****************************************
+//*************************************************************************************************************************
+
+/**
+ * The changeDir function will change the current working directory and the pwd environment variables.
+**/
+changeDir(char **args) {
+	
+	if (args.length == 0) {
+		print getcwd
+	} 
+	
+	if (args.lenght == 1) {
+		chdir to args[1]
+		// check for error i.e. -1 return.
+		setenv PWD to args[1]
+	}	
+}
+
+/**
+ * The clr function will clear the screen.
+**/
+clr() {
+	printf(“\e[1;1H\e[2J”);
+}
+
+/**
+ * The dir function will print the name contents of the current working directory.
+/**
+dir() {
+	struct direct temp pointer
+	DIR dir = opendir(PWD)
+	// Check for null then error if needed.
+	
+	while( temp = readdir(dir) != NULL) {
+		print the name of the dirent struct.
+	}
+	
+	close dir()
+}
+
+/**
+ * The environ function will print all of the system environment variables.
+/**
+eviron() {
+	int i = 0
+	
+	while (ENVIROMENT_VARS[i] != NULL) {
+		print ENVIROMENT_VARS[i++]
+	}
+}
+
+/**
+ * The echo function will print whatever is typed after the word echo(string or file)
+/**
+echo(char **args) {
+
+	// Same as wcat but added check for if not a file print any args after "echo"
+	 FILE *file = fopen(file_name, "r")
+	int i = 0
+    // Check if file is valid. If not print text after echo command.
+    if (file == NULL) {
+        while(args[i] != NULL) {
+			print args[i++]
+		}
+    } else {
+		char str[255]
+
+		while(fgets(str, 255, (FILE*)file) != NULL) {
+			printf("%s",str)
+		}
+		
+		fclose(file);
+	}
+}
+
+/**
+ * The help function will echo help.txt.
+/**
+help() {
+	echo("help.txt")
+}
+
+/**
+ * The pause function will wait for the user to press enter before continuing.
+**/
+pause() {
+	getchar()
+}
+
+/**
+ * The quit function will simply exit the myshell program if q or quit or exit is entered.
+/**
+quit() {
+	exit(0)
+}
+
+//******************************************************************************
+//*************************** Testing Plan *************************************
+//******************************************************************************
+
+Batch file errors:
+	-Batch file not found
+	-Incorrect format of commands or file
+	-Ignoring empty lines
+	-Completely empty file.
+	
+Parsing functionality:
+	-Excessive white space
+	-Parsing from file vs stdin
+	-Enter is pressed without input.
+
+Testing for splitting the parsed line by <, >, >>, |
+	-Multiple special commands above, ex, (x < y | z)
+	-Commands listed in incorrect order
+	-Commands back-to-back
+	-Can multiple pipes be used together
+	
+Testing the checkWait	
+	-Throw an error if & is used before the | special command+
+	-If multiple && are used 
+	-If the & is in the wrong location
+
+When executing shell functions	
+	-Is an error thrown when misspelled
+	-Is there an error if incompatible types are used together
+
+When executing built in commands
+	-What happens when changeDir() is sent an incorrect directory to change to
+	-Test blank input functionally for changeDir()
+	-Does dir() throw errors if directory is empty
+	-Test echo for both file input and text input
+	-Find other uses that echo may have besides stdin and files
+	
