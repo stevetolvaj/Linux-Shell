@@ -92,14 +92,14 @@ int checkParsedArgs(char **args) {
     int i = 0;
     
     while(args[i] != NULL) {
-        if(strcmp(args[i], ">>") == 0) {
+        if(strcmp(args[i], ">") == 0) {
             // Set terminating position of args so exec knows when to stop.
             args[i] = NULL;
             if (redirect(args, i) == -1) {
                 write(STDERR_FILENO,error_message,strlen(error_message));
             }
         }
-        else if(strcmp(args[i], ">") == 0) {
+        else if(strcmp(args[i], ">>") == 0) {
             // Set terminating position of args so exec knows when to stop.
             args[i] = NULL;
             if (redirectAppend(args, i) == -1) {
