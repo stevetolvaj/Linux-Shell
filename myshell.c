@@ -10,6 +10,10 @@
 #define MAX_ARGS 100
 
 void parser(char *input, char **args);
+int checkParsedArgs(char **args);
+int redirect(char **args, int position);
+int redirectAppend(char **args, int position);
+void redirectInput(char *arg1, char *arg2);
 
 const char error_message[30]="An error has occurred\n";
 
@@ -21,7 +25,11 @@ int main(int argc, char const *argv[], char const *envp[])
     size_t size = 0;// Size used for getline().
     int fileSpecifiedFlag = 0;  // Flag used to print prompt if batch file was not used.
     
-
+    // If myshell is invoked with more than 1 file, print error and exit.
+    if(argc > 2) {
+        write(STDERR_FILENO,error_message,strlen(error_message));
+        exit(1);
+    }
     // If filename is specified in arguments set the file descriptor to stdin descriptor.
     if (argc == 2) { 
         int fd = open(argv[1], O_RDONLY);
@@ -50,6 +58,7 @@ int main(int argc, char const *argv[], char const *envp[])
             exit(0);
         }
         parser(buff, args);
+        checkParsedArgs(args);
         printf("%s\n", buff);
         // Only print prompt if no batch file entered.
         if (!fileSpecifiedFlag) {
@@ -63,6 +72,8 @@ int main(int argc, char const *argv[], char const *envp[])
     return 0;
 }
 
+
+
 /**
  * The parser function will seperate input by spaces into
  * the supplied **args parameter.
@@ -75,10 +86,105 @@ void parser(char *input, char **args) {
     int i = 0;
     // split at spaces and tabs.
     while((args[i++] = strtok_r(input, "\t, ", &input))){}
+}
 
-    // Test by printing out delimited parsed string.
-    i = 0;
+int checkParsedArgs(char **args) {
+    int i = 0;
+    
     while(args[i] != NULL) {
-        printf("%s\n", args[i++]);
+        if(strcmp(args[i], ">>") == 0) {
+            // Set terminating position of args so exec knows when to stop.
+            args[i] = NULL;
+            if (redirect(args, i) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+            }
+        }
+        else if(strcmp(args[i], ">") == 0) {
+            // Set terminating position of args so exec knows when to stop.
+            args[i] = NULL;
+            if (redirectAppend(args, i) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+            }
+        }
+
+        i++;
     }
+    return 0;
+}
+
+/**
+ * The redirect function will direct the executed command args up to the first NULL in the arguments.
+ * This will cause a fork and run the arguments in a child function and redirect output to the filename
+ * located at the argument after the first NULL(Position + 1).
+ * 
+ * @param args The line of arguments from user input.
+ * @param position The position of the first null located in args.
+ * 
+ * @return Will return -1 if failure occurred or 0 if successfull.
+**/
+int redirect(char **args, int position) {
+    
+    int fd = open(args[position + 1], O_CREAT | O_TRUNC | O_WRONLY);
+
+    if(fd == -1) {
+        return -1;
+    }
+ 
+    int rc = fork();
+
+    if (rc < 0)
+    {
+        return -1;
+    }
+
+    if (rc == 0) {
+        if (dup2(fd, STDOUT_FILENO) == -1) {
+            return -1;
+        }
+        close(fd);
+        execvp(args[0], args);
+    }
+    wait(NULL);
+    return 0;
+}
+
+/**
+ * The redirect function will direct the executed command args up to the first NULL in the arguments.
+ * This will cause a fork and run the arguments in a child function and redirect output to the filename
+ * located at the argument after the first NULL(Position + 1). If the file exists it will append to 
+ * the filename specified.
+ * 
+ * @param args The line of arguments from user input.
+ * @param position The position of the first null located in args.
+ * 
+ * @return Will return -1 if failure occurred or 0 if successfull.
+**/
+int redirectAppend(char **args, int position) {
+    printf("%s\n", args[position + 1]);
+    int fd = open(args[position + 1], O_CREAT | O_WRONLY | O_APPEND);
+
+    if(fd == -1) {
+        return -1;
+    }
+ 
+    int rc = fork();
+
+    if (rc < 0)
+    {
+        return -1;
+    }
+
+    if (rc == 0) {
+        if (dup2(fd, STDOUT_FILENO) == -1) {
+            return -1;
+        }
+        close(fd);
+        execvp(args[0], args);
+    }
+    wait(NULL);
+    return 0;
+}
+
+void redirectInput(char *arg1, char *arg2) {
+    
 }
