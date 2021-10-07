@@ -13,7 +13,7 @@ void parser(char *input, char **args);
 int checkParsedArgs(char **args);
 int redirect(char **args, int position);
 int redirectAppend(char **args, int position);
-int redirectInput(char **args, int position);
+int redirectInput(char **args, int *position);
 int execute(char **args, int position);
 
 const char error_message[30]="An error has occurred\n";
@@ -112,7 +112,7 @@ int checkParsedArgs(char **args) {
             foundSpecial = 1;
         } else if(strcmp(args[i], "<") == 0) {
             args[i] = NULL;
-            if (redirectInput(args, i) == -1) {
+            if (redirectInput(args, &i) == -1) {
                 write(STDERR_FILENO,error_message,strlen(error_message));
             }
             foundSpecial = 1;
@@ -143,7 +143,7 @@ int checkParsedArgs(char **args) {
 **/
 int redirect(char **args, int position) {
     
-    int fd = open(args[position + 1], O_CREAT | O_TRUNC | O_WRONLY);
+    int fd = open(args[position + 1], O_CREAT | O_TRUNC | O_WRONLY, S_IRWXU);
 
     if(fd == -1) {
         return -1;
@@ -164,6 +164,7 @@ int redirect(char **args, int position) {
             write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
+        exit(0);
     } else {
         wait(NULL);
     }
@@ -183,7 +184,8 @@ int redirect(char **args, int position) {
  * @return Will return -1 if failure occurred or 0 if successful.
 **/
 int redirectAppend(char **args, int position) {
-    int fd = open(args[position + 1], O_CREAT | O_WRONLY | O_APPEND);
+    // Open descriptor with filename located after '>>'
+    int fd = open(args[position + 1], O_CREAT | O_WRONLY | O_APPEND, S_IRWXU);
 
     if(fd == -1) {
         return -1;
@@ -191,6 +193,7 @@ int redirectAppend(char **args, int position) {
  
     int rc = fork();
 
+    // Errors are handled within the child.
     if (rc < 0)
     {
         return -1;
@@ -204,6 +207,7 @@ int redirectAppend(char **args, int position) {
             write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
+        exit(0);
     } else {
         wait(NULL);
     }
@@ -211,25 +215,37 @@ int redirectAppend(char **args, int position) {
     return 0;
 }
 
-int redirectInput(char **args, int position) {
-    // int prev;
-    // int redirectOut = 0;
-    // int outFd;
+/**
+ * The redirectInput function will direct the executed command args up to the first NULL in the arguments.
+ * This will cause a fork and run the arguments in a child function and direct input from the filename
+ * located at the argument after the first NULL(Position + 1). If a '>' or '>>' is found after the filename
+ * it will perform the output redirection required.
+ * 
+ * @param args The line of arguments from user input.
+ * @param position The position of the first null located in args.
+ * 
+ * @return Will return -1 if failure occurred or 0 if successful.
+**/
+int redirectInput(char **args, int *position) {
 
-    // if(strcmp(args[position + 2], ">") == 0) {
-    //     redirectOut = 1;
-    //     prev = dup(STDOUT_FILENO);
-    //     outFd = open(args[position + 3], O_WRONLY| O_CREAT | O_TRUNC);
-    // } 
-    // if(strcmp(args[position + 2], ">>") == 0) {
-    //     redirectOut = 2;
-    //     outFd = open(args[position + 3], O_WRONLY| O_CREAT | O_APPEND);
-    //     prev = dup(STDOUT_FILENO);
-    // } 
-    
+    int outFd; // Output file descriptor if needed.
+    int redirectOut = 0; // Flag for checking if output is needed.
 
-    int fd = open(args[position + 1], O_RDONLY);
-    
+    // Check if next two args are null. If they are do not check for output redirection.
+    if(args[*position+2] != NULL && args[*position+3] != NULL) {
+        // Check if truncation or appending is needed for file descriptors if '>' or '>>' is found.
+        if(strcmp(args[*position + 2], ">") == 0) {
+            outFd = open(args[*position + 3], O_CREAT | O_TRUNC | O_WRONLY, S_IRWXU);  
+            redirectOut = 1;
+        }
+        if(strcmp(args[*position + 2], ">>") == 0) {
+            outFd = open(args[*position + 3], O_CREAT | O_APPEND | O_WRONLY, S_IRWXU);  
+            redirectOut = 1;     
+        }
+    }
+
+    // Open input redirection file with filename after the '<' in args.
+    int fd = open(args[*position + 1], O_RDONLY);
 
     if(fd == -1) {
         return -1;
@@ -241,31 +257,51 @@ int redirectInput(char **args, int position) {
     {
         return -1;
     } else if (rc == 0) {
-        
+
         if (dup2(fd, STDIN_FILENO) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
+        
+        // Redirect to output if output redirect is found.
+        if(redirectOut == 1) {
+            if(dup2(outFd, STDOUT_FILENO) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+                exit(1);
+            }
+            close(outFd);
+        }
+        
         close(fd);
         if (execvp(args[0], args) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
-
-        // if((redirectOut == 1) | (redirectOut == 2)) {
-        //     dup2(outFd, prev);
-            
-        //     close(outFd);
-        // }
-
+        exit(0);
     } else {
-      //  close(prev);
+      
         wait(NULL);
+
+        // If output redirection was found in args increase position in while loop to the output
+        // filename location.
+        if(redirectOut) {
+             (*position) += 3;
+        }
+       
     }
     
     return 0;
 }
 
+/**
+ * The execute function will fork and create a child process for the
+ * execution of arguments. Only used when redirection or piping is not needed.
+ * 
+ * @param args The line of arguments from user input.
+ * @param position The position of the first null located in args.
+ * 
+ * @return Will return -1 if failure occurred or 0 if successful.
+**/
 int execute(char **args, int position) {
     
     int rc = fork();
