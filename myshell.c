@@ -1,3 +1,13 @@
+/**
+ * @author Steve Tolvaj
+ * CIS 3207 001
+ * Project 2: Creating a Linux Type Shell Program
+ * 
+ * The myshell.c file includes redirection and logic for the user prompts. This includes
+ * the calls to the built in functions located in utility.c which is linked by the header file
+ * myshell.h.
+**/
+
 #include<stdio.h>
 #include<stdlib.h>
 #include<unistd.h>
@@ -10,6 +20,8 @@
 
 #define MAX_ARGS 100
 
+extern char **environ;
+
 void parser(char *input, char **args);
 void checkParsedArgs(char **args);
 int redirect(char **args, int position);
@@ -18,13 +30,13 @@ int redirectInput(char **args, int *position);
 int execute(char **args, int *position);
 int findWait(char **args, int position);
 void removeArgs(char **args, int position);
-int checkBuiltIns(char **args, const char **envp);
+int checkBuiltIns(char **args);
 
 
 const char error_message[30]="An error has occurred\n";
 
 
-int main(int argc, char const *argv[], char const *envp[])
+int main(int argc, char const *argv[])
 {
     
     // Ovewrite path variable to only contain /bin at start of program.
@@ -34,7 +46,7 @@ int main(int argc, char const *argv[], char const *envp[])
     // Get current directory that the program was started from.
     getcwd(direct,PATH_MAX);
     // Append myshell program name to end.
-    strcat(direct, "/myshell");
+
     // Make and set new shell variable.
     setenv("shell", direct, 1);
 
@@ -78,7 +90,7 @@ int main(int argc, char const *argv[], char const *envp[])
         }
     } else {    // Only print prompt if no batch file entered.
         input = stdin;
-        printf("%s/myshell>", getenv("PWD"));
+        printf("%s: myshell>", getenv("PWD"));
     }
     
     // Read input from stdin.
@@ -94,14 +106,14 @@ int main(int argc, char const *argv[], char const *envp[])
         }
         parser(buff, args);
 
-        if (checkBuiltIns(args, envp) == 0) {
+        if (checkBuiltIns(args) == 0) {
             checkParsedArgs(args);
         }
         
         
         // Only print prompt if no batch file entered.
         if (!fileSpecifiedFlag) {
-             printf("%s/myshell>", getenv("PWD"));
+             printf("%s: myshell>", getenv("PWD"));
         }
        
     }
@@ -388,9 +400,9 @@ int execute(char **args, int *position) {
     return 0;
 }
 
-int checkBuiltIns(char **args, const char **envp) {
+int checkBuiltIns(char **args) {
     char *firstArg = args[0];
-    printf("%s\n", firstArg);
+    
     if(strcmp("cd", firstArg) == 0) {
         if (changeDir(args) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
@@ -403,7 +415,7 @@ int checkBuiltIns(char **args, const char **envp) {
             write(STDERR_FILENO,error_message,strlen(error_message));
         }
     }else if(strcmp("environ", firstArg) == 0) {
-        if (printEnvp(envp) == -1) {
+        if (printEnvp(environ) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
         }
     }else if(strcmp("echo", firstArg) == 0) {
@@ -416,10 +428,15 @@ int checkBuiltIns(char **args, const char **envp) {
     }else if(strcmp("pause", firstArg) == 0) {
         pausePrompt();
         // no return if succesful
+    }else if(strcmp("path", firstArg) == 0) {
+        if (addPath(args) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+        }
     }else {
         // If no built in found return 0;
         return 0;
     }
+    printf("it ran using built-in.\n");
     return 1;
 }
 

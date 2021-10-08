@@ -1,3 +1,11 @@
+/**
+ * @author Steve Tolvaj
+ * CIS 3207 001
+ * Project 2: Creating a Linux Type Shell Program
+ * 
+ * The utility.c file is used to support the built in functions needed for the myshell program.
+**/
+
 #include<stdio.h>
 #include<unistd.h>
 #include<stdlib.h>
@@ -26,6 +34,7 @@ int changeDir(char **args) {
             // Print current directory if no directory was specified.
             getcwd(direct, PATH_MAX);
             printf("%s\n", direct);
+            return 0;
         } else {
             return -1;
         }
@@ -91,7 +100,7 @@ int printDirectory(char **args) {
  * 
  * @return If succesful, will return 0, otherwise returns 0.
 **/
-int printEnvp(const char **args) {
+int printEnvp(char **args) {
     int i = 0;
 
     while(args[i] != NULL) {
@@ -116,13 +125,32 @@ void echoPrint(char **args) {
     int i = 1;
 
     while(args[i] != NULL) {
-        printf("%s", args[i++]);
+        printf("%s ", args[i++]);
     }
     printf("\n");
 }
 
+/**
+ * The printHelp function will print the myshell manual located in help.txt
+ * located in the original exe directory.
+ * 
+ * @return 0 if successful or -1 if failure.
+**/
 int printHelp() {
-    FILE *file = fopen("help.txt", "r");
+
+    // Save original shell path set when program started.
+    char *shellPath = getenv("shell");
+
+    if(shellPath == NULL){
+        return -1;
+    }
+
+    char helpLocation[PATH_MAX];
+    // Copy path to new char array to avoid changing environment variable.
+    strcpy(helpLocation, shellPath);
+    // Concat on the name of the help file.
+    strcat(helpLocation, "/help.txt");
+    FILE *file = fopen(helpLocation, "r");
     if (file == NULL) {
         return -1;
     } 
@@ -139,8 +167,52 @@ int printHelp() {
     return 0;
 }
 
+/**
+ * The pausePrompt function will pause the program until the enter key is pressed.
+**/
 void pausePrompt() {
     while(getchar() != '\n') {}
+}
+
+/**
+ * The addPath function will add any new path enviroment variables specified
+ * by the user input starting at argument 1. All extra path args greater than 1
+ * will be seperated by ';'.
+ * 
+ * @param args The arguments specified by the user.
+ * 
+ * @return -1 if failure, 0 if successful.
+**/
+int addPath (char **args) {
+    int count = countArgs(args);
+    int i = 2;
+
+    // No argumnets supplied after command.
+    if (count == 1) {
+        if(setenv("PATH", "", 1) == -1) {
+            return -1;
+        }
+    } 
+    // Exactly one argument supplied after command.
+    if (count == 2) {
+        if(setenv("PATH", args[1], 1) == -1) {
+            return -1;
+        }
+    }
+    char temp[PATH_MAX];
+    // More than one argument after command needs ':' seperation.
+    if(count > 2) {
+        strcpy(temp, args[1]);
+        while(args[i] != NULL) {
+            strcat(temp, ":");
+            strcat(temp, args[i++]);
+        }
+        if (setenv("PATH", temp, 1) == -1) {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 /**
