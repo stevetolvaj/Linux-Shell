@@ -18,29 +18,45 @@ int redirectInput(char **args, int *position);
 int execute(char **args, int *position);
 int findWait(char **args, int position);
 void removeArgs(char **args, int position);
+int checkBuiltIns(char **args, const char **envp);
+
+
 const char error_message[30]="An error has occurred\n";
 
 
 int main(int argc, char const *argv[], char const *envp[])
 {
+    
     // Ovewrite path variable to only contain /bin at start of program.
     setenv("PATH","/bin", 1);
-
-    // Testing for built in functions.
-    char *argtest[4] = {"cd", "/home/stevet90/", NULL};
+    // The shell environment should contain shell=<pathname>/myshell where <pathname>/myshell
     char direct[PATH_MAX];
-    changeDir(argtest);
-    getcwd(direct, PATH_MAX);
-    printf("%s\n", direct);
-    printf("%s\n", getenv("PWD"));
-    clearPrompt();
-    printEnvp(envp);
-    printDirectory(argtest);
-    printEnvp(envp);
-    clearPrompt();
+    // Get current directory that the program was started from.
+    getcwd(direct,PATH_MAX);
+    // Append myshell program name to end.
+    strcat(direct, "/myshell");
+    // Make and set new shell variable.
+    setenv("shell", direct, 1);
+
+
+    // // Testing for built in functions.
+    // char *argtest[4] = {"cd", "/home/stevet90/", NULL};
+    // char direct[PATH_MAX];
+    // changeDir(argtest);
+    // getcwd(direct, PATH_MAX);
+    // printf("%s\n", direct);
+    // printf("%s\n", getenv("PWD"));
+    // clearPrompt();
+    // printEnvp(envp);
+    // printDirectory(argtest);
+    // printEnvp(envp);
+    // clearPrompt();
+    // echo(argtest);
+ 
+    // printHelp();
     FILE *input;
     char *args[MAX_ARGS];    // The arguments extracted from stdin or batch file after parsing.
-    char *buff;     // The buffer used for getline().
+    char *buff = NULL;     // The buffer used for getline().
     size_t size = 0;// Size used for getline().
     int fileSpecifiedFlag = 0;  // Flag used to print prompt if batch file was not used.
     
@@ -73,13 +89,16 @@ int main(int argc, char const *argv[], char const *envp[])
         }
         
         // If quit is typed exit with 0.
-        if (strcmp(buff, "quit") == 0) {
+        if (strcmp(buff, "quit") == 0 || strcmp(buff, "exit") == 0) {
             exit(0);
         }
         parser(buff, args);
-        checkParsedArgs(args);
-        
 
+        if (checkBuiltIns(args, envp) == 0) {
+            checkParsedArgs(args);
+        }
+        
+        
         // Only print prompt if no batch file entered.
         if (!fileSpecifiedFlag) {
              printf("%s/myshell>", getenv("PWD"));
@@ -367,6 +386,41 @@ int execute(char **args, int *position) {
     //     printf("%s\n", args[j++]);
     // }
     return 0;
+}
+
+int checkBuiltIns(char **args, const char **envp) {
+    char *firstArg = args[0];
+    printf("%s\n", firstArg);
+    if(strcmp("cd", firstArg) == 0) {
+        if (changeDir(args) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+        }
+    } else if(strcmp("clr", firstArg) == 0) {
+        clearPrompt();
+        // no return if succesful
+    } else if(strcmp("dir", firstArg) == 0) {
+        if (printDirectory(args) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+        }
+    }else if(strcmp("environ", firstArg) == 0) {
+        if (printEnvp(envp) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+        }
+    }else if(strcmp("echo", firstArg) == 0) {
+        echoPrint(args);
+        // no return if succesful
+    }else if(strcmp("help", firstArg) == 0) {
+        if (printHelp() == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+        }
+    }else if(strcmp("pause", firstArg) == 0) {
+        pausePrompt();
+        // no return if succesful
+    }else {
+        // If no built in found return 0;
+        return 0;
+    }
+    return 1;
 }
 
 // The following is not used yet. Still working out how to 

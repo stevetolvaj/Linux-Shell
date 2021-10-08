@@ -6,6 +6,8 @@ void clearPrompt();
 int countArgs(char **args);
 int printDirectory(char **args);
 int printEnvp(const char **args);
-
+void echoPrint(char **args);
+int printHelp();
+void pausePrompt();
 
 #endif

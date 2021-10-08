@@ -85,7 +85,7 @@ int printDirectory(char **args) {
 
 /**
  * The printEnvp will print a const NULL terminated array of character arrays. Useful for printing
- * enviroment variables from main function parameter envp and test printing.
+ * enviroment variables from main function parameter envp and test printing const **char types.
  * 
  * @param args Any null terminated array of char arrays.
  * 
@@ -106,6 +106,51 @@ int printEnvp(const char **args) {
     }
 }
 
+/**
+ * The echo function will print any commands found after the first command.
+ * 
+ *@param args The arguments to print after index 0. 
+ * 
+**/
+void echoPrint(char **args) {
+    int i = 1;
+
+    while(args[i] != NULL) {
+        printf("%s", args[i++]);
+    }
+    printf("\n");
+}
+
+int printHelp() {
+    FILE *file = fopen("help.txt", "r");
+    if (file == NULL) {
+        return -1;
+    } 
+
+    char *buff = NULL;
+    size_t size = 0;
+
+    while (getline(&buff, &size, file) != -1) {
+        printf("%s", buff);
+    }
+    printf("\n");
+
+    free(buff);
+    return 0;
+}
+
+void pausePrompt() {
+    while(getchar() != '\n') {}
+}
+
+/**
+ * The countArgs function will count any arguments that occur before the NULL 
+ * terminator character array.
+ * 
+ * @param args The array of args to count.
+ * 
+ * @return The number of args found before NULL occured.
+**/
 int countArgs(char **args) {
     int count = 0;
     while(args[count] != NULL) {
