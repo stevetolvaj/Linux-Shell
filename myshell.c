@@ -1,25 +1,43 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<unistd.h>
-#include <sys/types.h>
-#include <dirent.h>
-#include <sys/wait.h>
-#include <string.h>
-#include <fcntl.h>
+#include<sys/types.h>
+#include<dirent.h>
+#include<sys/wait.h>
+#include<string.h>
+#include<fcntl.h>
+#include"myshell.h"
 
 #define MAX_ARGS 100
 
 void parser(char *input, char **args);
-int checkParsedArgs(char **args);
+void checkParsedArgs(char **args);
 int redirect(char **args, int position);
 int redirectAppend(char **args, int position);
 int redirectInput(char **args, int *position);
-int execute(char **args, int position);
-
+int execute(char **args, int *position);
+int findWait(char **args, int position);
+void removeArgs(char **args, int position);
 const char error_message[30]="An error has occurred\n";
+
 
 int main(int argc, char const *argv[], char const *envp[])
 {
+    // Ovewrite path variable to only contain /bin at start of program.
+    setenv("PATH","/bin", 1);
+
+    // Testing for built in functions.
+    char *argtest[4] = {"cd", "/home/stevet90/", NULL};
+    char direct[PATH_MAX];
+    changeDir(argtest);
+    getcwd(direct, PATH_MAX);
+    printf("%s\n", direct);
+    printf("%s\n", getenv("PWD"));
+    clearPrompt();
+    printEnvp(envp);
+    printDirectory(argtest);
+    printEnvp(envp);
+    clearPrompt();
     FILE *input;
     char *args[MAX_ARGS];    // The arguments extracted from stdin or batch file after parsing.
     char *buff;     // The buffer used for getline().
@@ -46,7 +64,7 @@ int main(int argc, char const *argv[], char const *envp[])
         input = stdin;
         printf("%s/myshell>", getenv("PWD"));
     }
-
+    
     // Read input from stdin.
     while(getline(&buff, &size, input) != -1) {
         // Replace newline with \0 if exists.
@@ -60,6 +78,8 @@ int main(int argc, char const *argv[], char const *envp[])
         }
         parser(buff, args);
         checkParsedArgs(args);
+        
+
         // Only print prompt if no batch file entered.
         if (!fileSpecifiedFlag) {
              printf("%s/myshell>", getenv("PWD"));
@@ -89,11 +109,20 @@ void parser(char *input, char **args) {
     while((args[i++] = strtok_r(input, "\t, ", &input))){}
 }
 
-int checkParsedArgs(char **args) {
+/**
+ * The checkParsedArgs function will find and redirection, pipe, and run in background chars
+ * and set the special char argument to NULL. Then it will send the arguments and position of
+ * the special char to the apropriate function below. If nothing is found it will send to execute
+ * as normal child process.
+ * 
+ * @param args The arguments parsed by spaces.
+**/
+void checkParsedArgs(char **args) {
     int i = 0;
-    // File descriptor to save prev output.
+    // Flag to indicate if function should run without piping or redirection.
     int foundSpecial = 0;
 
+    // Loop through until a pipe or redirection command is found.
     while(args[i] != NULL) {
         if(strcmp(args[i], ">") == 0) {
             // Set terminating position of args so exec knows when to stop.
@@ -117,18 +146,18 @@ int checkParsedArgs(char **args) {
             }
             foundSpecial = 1;
         } 
+
         i++;
+        
     }
 
+    // If no special argument is found run as normal command as child process in execute function.
     if (!foundSpecial)
     {
-        if (execute(args, i) == -1) {
+        if (execute(args, &i) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
         }
     }
-    
-
-    return 0;
 }
 
 /**
@@ -302,8 +331,14 @@ int redirectInput(char **args, int *position) {
  * 
  * @return Will return -1 if failure occurred or 0 if successful.
 **/
-int execute(char **args, int position) {
+int execute(char **args, int *position) {
+  
+    // Testing for running in background.
+    // int shouldWait = findWait(args, *position);
     
+    
+    
+   
     int rc = fork();
 
     if (rc < 0)
@@ -314,10 +349,62 @@ int execute(char **args, int position) {
             write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
+        exit(0);
     } else {
         wait(NULL);
+
+        // Testing for running in background.
+        // if (shouldWait == 0) {
+        //     wait(NULL);
+        // } else {
+        //     printf("RUNNING in background, Position: %d\n", shouldWait);
+        // }
     }
-    
+    // Testing for running in background.
+    // removeArgs(args, *position);
+    //  int j = 0;
+    // while (args[j] != NULL) {
+    //     printf("%s\n", args[j++]);
+    // }
     return 0;
-    
+}
+
+// The following is not used yet. Still working out how to 
+// run multiple processes in background from one line of 
+// command arguments.
+
+/**
+ * The findWait function will find any ampersand in the arguments to check if
+ * process should run in the background. It will also set the ampersand char array to 
+ * NULL in the supplied args argument.
+ * 
+ * @param args The arguments to search through.
+ * @param args The position to start the search at.
+ * 
+ * @return The position of the ampersand that was found.
+**/
+int findWait(char **args, int position) {
+    // Start loop at position of special char.
+    // Start at end - 1 if position was already at NULL terminator.
+    int i = 0;
+
+    while(args[i] != NULL) {
+        if (strcmp(args[i], "&") == 0) {
+            args[i] = NULL;
+            return i;
+        }
+        i++;
+    }
+    return 0;
+}
+
+void removeArgs(char **args, int position) {
+    int i;
+    int j;
+    for (j = 0; j < position; j++)
+    {
+        for(i = 0; i < 100; i++) {
+            args[i] = args[i+1];
+        }
+    }
 }
