@@ -1,42 +1,39 @@
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
-This is the current manual.
-xxx
-To be continued...
+myshell: A Linux Type Shell
+
+How to Use: 
+Navigate to the directory that contains the executable myshell. 
+Once in the directory execute myshell by typing ./myshell. 
+This will start a prompt that will continue until exit or quit is typed. 
+The prompt will contain the current directory followed by ': myshell>'. 
+This is especially useful when using the change directory command 'cd' to 
+keep track of the current directory your PWD environment variable is in.
+
+Built-in Functions:
+cd – The cd command can be stands for change directory. When used without a 
+	directory location or any or any other arguments after typing 'cd', 
+	it will simply print the current directory path. When used with a 
+	specific directory path, it will change the current directory to the 
+	one that was specified. It will work with the same shortcuts for 
+	directory changes as in other shells such as bash.
+clr – The clr command will clear any text that is left on the screen and print
+	a new prompt.
+dir – The dir command will print the current directories content names by 
+	typing 'dir'. If a specific path is specified after typing 'dir' 
+	it will print the contents of the directory path that was entered.
+environ – The environ command will print all current and up to date environment
+	variables by typing 'environ'.
+echo – The echo command will repeat anything that is typed after 'echo' is 
+	entered. It will be printed on a new line. If nothing is typed after 
+	the command it will print a new line and the shell will continue.
+help – The help command will display the current readme file. It will display 
+	exactly enough text to fill the size of the terminal window. Instead 
+	of scrolling enter is pressed to advance to the next page.
+pause – The pause command will stop the program and stop printing to the prompt 
+	until the enter key is pressed.
+quit – The quit command is used to exit the program. An alternative can be 
+	exit or terminating the program using system shortcuts.
+path – The path command is used to set the PATH environment variable. 
+	If nothing is entered after 'path' is typed it will reset the PATH 
+	to contain no variables. It can accept more than one path specified after 
+	'path' is typed and will separate the paths accordingly. The initial PATH
+	 variable is '/bin' when the program starts.
