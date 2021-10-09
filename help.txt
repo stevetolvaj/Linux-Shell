@@ -1,4 +1,0 @@
-
-This is the current manual.
-
-It will be fully written once functionality is completed fully.
