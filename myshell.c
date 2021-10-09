@@ -106,8 +106,6 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
-
-
 /**
  * The parser function will seperate input by spaces into
  * the supplied **args parameter.
@@ -185,12 +183,17 @@ void checkParsedArgs(char **args) {
 **/
 int redirect(char **args, int position) {
     
+    if(checkRedirectBuiltIn(args) == 1) {    // If built in cannot be redirected return -1 for error.
+        return -1;
+    }
+
+    // If built in is ok open file.
     int fd = open(args[position + 1], O_CREAT | O_TRUNC | O_WRONLY, S_IRWXU);
     if(fd == -1) {
         return -1;
     }
     
-    // Check if it is a built in command that can be redirected.
+    // Check if built in should run or fork with exec.
     int stdO;
     if(checkRedirectBuiltIn(args) == 2) {
         stdO = dup(STDOUT_FILENO);
@@ -210,8 +213,6 @@ int redirect(char **args, int position) {
             return -1;
         }
         close(stdO);
-    } else if(checkRedirectBuiltIn(args) == 1) {    // If built in cannot be redirected print error message.
-        write(STDERR_FILENO,error_message,strlen(error_message));
     } else { // If not built in fork() and exec().
         int rc = fork();
 
@@ -249,6 +250,11 @@ int redirect(char **args, int position) {
  * @return Will return -1 if failure occurred or 0 if successful.
 **/
 int redirectAppend(char **args, int position) {
+
+    if(checkRedirectBuiltIn(args) == 1) {    // If built in cannot be redirected return -1 for error.
+        return -1;
+    }
+    
     // Open descriptor with filename located after '>>'
     int fd = open(args[position + 1], O_CREAT | O_WRONLY | O_APPEND, S_IRWXU);
 
@@ -256,7 +262,7 @@ int redirectAppend(char **args, int position) {
         return -1;
     }
 
-    // Check if it is a built in command that can be redirected.
+    // Check if it is a built in command that can be redirected or fork and exec if not.
     int stdO;
     if(checkRedirectBuiltIn(args) == 2) {
         stdO = dup(STDOUT_FILENO);
@@ -276,9 +282,7 @@ int redirectAppend(char **args, int position) {
             return -1;
         }
         close(stdO);
-    } else if(checkRedirectBuiltIn(args) == 1) {    // If built in cannot be redirected print error message.
-        write(STDERR_FILENO,error_message,strlen(error_message));
-    } else { // If not built in fork() and exec().
+    }  else { // If not built in fork() and exec().
         int rc = fork();
 
         // Errors are handled within the child.
@@ -412,23 +416,10 @@ int execute(char **args, int *position) {
             }
         exit(0);
     } else {
-        wait(NULL);
-
-        // Testing for running in background.
-        // if (shouldWait == 0) {
-        //     wait(NULL);
-        // } else {
-        //     printf("RUNNING in background, Position: %d\n", shouldWait);
-        // }
-    }
+            wait(NULL);
+        }
     }
    
-    // Testing for running in background.
-    // removeArgs(args, *position);
-    //  int j = 0;
-    // while (args[j] != NULL) {
-    //     printf("%s\n", args[j++]);
-    // }
     return 0;
 }
 
@@ -461,11 +452,11 @@ int runBuiltIns(char **args) {
         }
     }else if(strcmp("echo", firstArg) == 0) {
         echoPrint(args);
+        // No return value if succesfull.
     }else if(strcmp("help", firstArg) == 0) {
         if (printHelp() == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
         }
-        return 2; // returns 2 for redirection capability.
     }else if(strcmp("pause", firstArg) == 0) {
         pausePrompt();
         // no return if succesful
@@ -506,12 +497,6 @@ int checkRedirectBuiltIn(char **args) {
     
 }
 
-// *****************************************************
-// The following are not used yet. Still working out how to 
-// run multiple processes in background from one line of 
-// command arguments.
-// ******************************************************
-
 /**
  * The findWait function will find any ampersand in the arguments to check if
  * process should run in the background. It will also set the ampersand char array to 
@@ -537,13 +522,3 @@ int findWait(char **args, int position) {
     return 0;
 }
 
-void removeArgs(char **args, int position) {
-    int i;
-    int j;
-    for (j = 0; j < position; j++)
-    {
-        for(i = 0; i < 100; i++) {
-            args[i] = args[i+1];
-        }
-    }
-}
