@@ -32,6 +32,7 @@ int findWait(char **args, int position);
 void removeArgs(char **args, int position);
 int runBuiltIns(char **args);
 int checkRedirectBuiltIn(char **args);
+int runPipe(char **args, int *position);
 
 const char error_message[30]="An error has occurred\n";
 
@@ -156,7 +157,13 @@ void checkParsedArgs(char **args) {
                 write(STDERR_FILENO,error_message,strlen(error_message));
             }
             foundSpecial = 1;
-        } 
+        }  else if(strcmp(args[i], "|") == 0) {
+            args[i] = NULL;
+            if (runPipe(args, &i) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+            }
+            foundSpecial = 1;
+        }  
 
         i++;
         
@@ -247,7 +254,7 @@ int redirect(char **args, int position) {
  * @param args The line of arguments from user input.
  * @param position The position of the first null located in args.
  * 
- * @return Will return -1 if failure occurred or 0 if successful.
+ * @return Will return -1 if failure occurred in parent process or 0 if successful.
 **/
 int redirectAppend(char **args, int position) {
 
@@ -316,7 +323,7 @@ int redirectAppend(char **args, int position) {
  * @param args The line of arguments from user input.
  * @param position The position of the first null located in args.
  * 
- * @return Will return -1 if failure occurred or 0 if successful.
+ * @return Will return -1 if failure occurred in parent process or 0 if successful.
 **/
 int redirectInput(char **args, int *position) {
 
@@ -495,6 +502,93 @@ int checkRedirectBuiltIn(char **args) {
         return 0;
     }
     
+}
+
+/**
+ * The pipe function will pipe the arguments between the pipe character found in args.
+ * 
+ * @param args The arguments to pipe.
+ * 
+ * @return 0 if succesfull or -1 if failure occured in parent process.
+**/
+int runPipe(char **args, int *position) {
+    // Split args between the | character into two seperate arrays.
+    char *args1[MAX_ARGS];
+    char *args2[MAX_ARGS];
+    int i = 0;
+
+    // Split first part before pipe character.
+    while (i <= *position) {
+        args1[i] = args[i];
+        i++;
+    }
+
+    // Split second part after pipe character.
+    i = 0;
+    *position = *position + 1;
+    while(args[*position] != NULL) {
+        args2[i] = args[*position];
+        i++;
+        *position = *position + 1;
+    }
+
+    args2[i] = NULL; // Set last arg to null.
+
+    int pipeDescriptor[2];
+
+    if(pipe(pipeDescriptor) == -1) {
+        return -1;
+    }
+
+    // Fork and exec first set of args to stdout.
+    int rc1 = fork();
+
+    if (rc1 < 0) {
+        return -1;
+    }
+    if (rc1 == 0) {
+        if(dup2(pipeDescriptor[1], STDOUT_FILENO) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+            exit(1);
+        }
+        close(pipeDescriptor[0]);
+        close(pipeDescriptor[1]);
+        if(execvp(args1[0], args1) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+            exit(1);
+        }
+        exit(0);
+    }
+
+    // Fork and exec second set of args to STDIN
+    int rc2 = fork();
+
+    if (rc2 < 0) {
+        return -1;
+    }
+    if (rc2 == 0) {
+        if(dup2(pipeDescriptor[0], STDIN_FILENO) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+            exit(1);
+        }
+        close(pipeDescriptor[0]);
+        close(pipeDescriptor[1]);
+        if(execvp(args2[0], args2) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+            exit(1);
+        }
+        exit(0);
+    }
+    
+    // Close open file descriptors in parent process.
+    close(pipeDescriptor[0]);
+    close(pipeDescriptor[1]);
+
+    // Wait for both children to finish.
+    waitpid(rc1, NULL, 0);
+    waitpid(rc2, NULL, 0);
+
+    return 0;
 }
 
 /**
