@@ -30,8 +30,8 @@ int redirectInput(char **args, int *position);
 int execute(char **args, int *position);
 int findWait(char **args, int position);
 void removeArgs(char **args, int position);
-int checkBuiltIns(char **args);
-
+int runBuiltIns(char **args);
+int checkRedirectBuiltIn(char **args);
 
 const char error_message[30]="An error has occurred\n";
 
@@ -45,25 +45,8 @@ int main(int argc, char const *argv[])
     char direct[PATH_MAX];
     // Get current directory that the program was started from.
     getcwd(direct,PATH_MAX);
-    // Append myshell program name to end.
-
     // Make and set new shell variable.
     setenv("shell", direct, 1);
-
-
-    // // Testing for built in functions.
-    // char *argtest[4] = {"cd", "/home/stevet90/", NULL};
-    // char direct[PATH_MAX];
-    // changeDir(argtest);
-    // getcwd(direct, PATH_MAX);
-    // printf("%s\n", direct);
-    // printf("%s\n", getenv("PWD"));
-    // clearPrompt();
-    // printEnvp(envp);
-    // printDirectory(argtest);
-    // printEnvp(envp);
-    // clearPrompt();
-    // echo(argtest);
  
     // printHelp();
     FILE *input;
@@ -104,23 +87,22 @@ int main(int argc, char const *argv[])
         if (strcmp(buff, "quit") == 0 || strcmp(buff, "exit") == 0) {
             exit(0);
         }
+
+        // Send buff to parser and stored parsed char arrays in args.
         parser(buff, args);
 
-        if (checkBuiltIns(args) == 0) {
-            checkParsedArgs(args);
-        }
-        
-        
+        // Send the parsed args to check parsed args to check for redirection, piping, or execute command.
+        checkParsedArgs(args);
+
         // Only print prompt if no batch file entered.
         if (!fileSpecifiedFlag) {
              printf("%s: myshell>", getenv("PWD"));
-        }
+        } 
        
     }
     
     free(buff);
-    
-    
+    fclose(input);
     return 0;
 }
 
@@ -134,7 +116,6 @@ int main(int argc, char const *argv[])
  * @param args The array of strings to store the parsed input into.
 **/
 void parser(char *input, char **args) {
-
     int i = 0;
     // split at spaces and tabs.
     while((args[i++] = strtok_r(input, "\t, ", &input))){}
@@ -149,7 +130,7 @@ void parser(char *input, char **args) {
  * @param args The arguments parsed by spaces.
 **/
 void checkParsedArgs(char **args) {
-    int i = 0;
+    int i = 1;
     // Flag to indicate if function should run without piping or redirection.
     int foundSpecial = 0;
 
@@ -158,6 +139,7 @@ void checkParsedArgs(char **args) {
         if(strcmp(args[i], ">") == 0) {
             // Set terminating position of args so exec knows when to stop.
             args[i] = NULL;
+
             if (redirect(args, i) == -1) {
                 write(STDERR_FILENO,error_message,strlen(error_message));
             }
@@ -204,29 +186,52 @@ void checkParsedArgs(char **args) {
 int redirect(char **args, int position) {
     
     int fd = open(args[position + 1], O_CREAT | O_TRUNC | O_WRONLY, S_IRWXU);
-
     if(fd == -1) {
         return -1;
     }
- 
-    int rc = fork();
-
-    if (rc < 0)
-    {
-        return -1;
-    } else if (rc == 0) {
-        if (dup2(fd, STDOUT_FILENO) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
-            exit(1);
+    
+    // Check if it is a built in command that can be redirected.
+    int stdO;
+    if(checkRedirectBuiltIn(args) == 2) {
+        stdO = dup(STDOUT_FILENO);
+        if(stdO == -1) {    // If failed return -1 for error checking.
+            return -1;
+        }
+        
+        // Replace stdout with filename.
+        if(dup2(fd, STDOUT_FILENO) == -1) {
+            return -1;       // If failed return -1 for error checking.
         }
         close(fd);
-        if (execvp(args[0], args) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
-            exit(1);
+        runBuiltIns(args);
+        // Change back to original stdout.
+        fflush(stdout);
+        if (dup2(stdO, STDOUT_FILENO) == -1) {
+            return -1;
         }
-        exit(0);
-    } else {
-        wait(NULL);
+        close(stdO);
+    } else if(checkRedirectBuiltIn(args) == 1) {    // If built in cannot be redirected print error message.
+        write(STDERR_FILENO,error_message,strlen(error_message));
+    } else { // If not built in fork() and exec().
+        int rc = fork();
+
+        if (rc < 0)
+        {
+            return -1;
+        } else if (rc == 0) {
+            if (dup2(fd, STDOUT_FILENO) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+                exit(1);
+            }
+            close(fd);
+            if (execvp(args[0], args) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+                exit(1);
+            }
+            exit(0);
+        } else {
+            wait(NULL);
+        }
     }
    
     return 0;
@@ -250,28 +255,51 @@ int redirectAppend(char **args, int position) {
     if(fd == -1) {
         return -1;
     }
- 
-    int rc = fork();
 
-    // Errors are handled within the child.
-    if (rc < 0)
-    {
-        return -1;
-    } else if (rc == 0) {
-        if (dup2(fd, STDOUT_FILENO) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
-            exit(1);
+    // Check if it is a built in command that can be redirected.
+    int stdO;
+    if(checkRedirectBuiltIn(args) == 2) {
+        stdO = dup(STDOUT_FILENO);
+        if(stdO == -1) {    // If failed return -1 for error checking.
+            return -1;
+        }
+        
+        // Replace stdout with filename.
+        if(dup2(fd, STDOUT_FILENO) == -1) {
+            return -1;       // If failed return -1 for error checking.
         }
         close(fd);
-        if (execvp(args[0], args) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
-            exit(1);
+        runBuiltIns(args);
+        // Change back to original stdout.
+        fflush(stdout);
+        if (dup2(stdO, STDOUT_FILENO) == -1) {
+            return -1;
         }
-        exit(0);
-    } else {
-        wait(NULL);
+        close(stdO);
+    } else if(checkRedirectBuiltIn(args) == 1) {    // If built in cannot be redirected print error message.
+        write(STDERR_FILENO,error_message,strlen(error_message));
+    } else { // If not built in fork() and exec().
+        int rc = fork();
+
+        // Errors are handled within the child.
+        if (rc < 0)
+        {
+            return -1;
+        } else if (rc == 0) {
+            if (dup2(fd, STDOUT_FILENO) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+                exit(1);
+            }
+            close(fd);
+            if (execvp(args[0], args) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+                exit(1);
+            }
+            exit(0);
+        } else {
+            wait(NULL);
+        }
     }
-    
     return 0;
 }
 
@@ -288,7 +316,7 @@ int redirectAppend(char **args, int position) {
 **/
 int redirectInput(char **args, int *position) {
 
-    int outFd; // Output file descriptor if needed.
+    int outFd; // Output file descriptor if needed to redirect out.
     int redirectOut = 0; // Flag for checking if output is needed.
 
     // Check if next two args are null. If they are do not check for output redirection.
@@ -366,20 +394,22 @@ int execute(char **args, int *position) {
   
     // Testing for running in background.
     // int shouldWait = findWait(args, *position);
-    
-    
-    
-   
-    int rc = fork();
 
-    if (rc < 0)
-    {
-        return -1;
-    } else if (rc == 0) { 
-        if (execvp(args[0], args) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
-            exit(1);
-        }
+    // Check if it is a built in command. Does not matter if it is redirectable by the time
+    // it reaches this function.
+    if(checkRedirectBuiltIn(args) == 1 || checkRedirectBuiltIn(args) == 2) {
+        runBuiltIns(args);
+    } else {
+         int rc = fork();
+
+        if (rc < 0)
+        {
+            return -1;
+        } else if (rc == 0) { 
+            if (execvp(args[0], args) == -1) {
+                write(STDERR_FILENO,error_message,strlen(error_message));
+                exit(1);
+            }
         exit(0);
     } else {
         wait(NULL);
@@ -391,6 +421,8 @@ int execute(char **args, int *position) {
         //     printf("RUNNING in background, Position: %d\n", shouldWait);
         // }
     }
+    }
+   
     // Testing for running in background.
     // removeArgs(args, *position);
     //  int j = 0;
@@ -400,7 +432,16 @@ int execute(char **args, int *position) {
     return 0;
 }
 
-int checkBuiltIns(char **args) {
+/**
+ * The runBuiltIns function will run the built in command if the first argument
+ * corresponds to a built in function. If it does it is called and 
+ * checked for errors.
+ * 
+ * @param args The arguments that contain input commands.
+ * 
+ * @return 0 if no built in functions were called, 1 if built in.
+**/
+int runBuiltIns(char **args) {
     char *firstArg = args[0];
     
     if(strcmp("cd", firstArg) == 0) {
@@ -420,11 +461,11 @@ int checkBuiltIns(char **args) {
         }
     }else if(strcmp("echo", firstArg) == 0) {
         echoPrint(args);
-        // no return if succesful
     }else if(strcmp("help", firstArg) == 0) {
         if (printHelp() == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
         }
+        return 2; // returns 2 for redirection capability.
     }else if(strcmp("pause", firstArg) == 0) {
         pausePrompt();
         // no return if succesful
@@ -436,13 +477,40 @@ int checkBuiltIns(char **args) {
         // If no built in found return 0;
         return 0;
     }
-    printf("it ran using built-in.\n");
+    // Return 1 if it was a built in
     return 1;
 }
 
-// The following is not used yet. Still working out how to 
+/**
+ * The checkRedirectBuiltIn function will check if it is a built in function
+ * call, a redirectable built in, or not a built in function.
+ * 
+ * @param args The arguments to check.
+ * 
+ * @return 0 if not built in function. 1 if it is a built in function. 2 if the built in function is redirectable.
+**/
+int checkRedirectBuiltIn(char **args) {
+    int i = 0;
+    char *firstArg;
+   
+    firstArg = args[i++];
+    // Check for redirectable built in first.
+
+    if((strcmp("dir", firstArg) == 0) || (strcmp("environ", firstArg) == 0)|| (strcmp("echo", firstArg) == 0)|| (strcmp("help", firstArg) == 0)) {
+        return 2;
+    } else if((strcmp("cd", firstArg) == 0) || (strcmp("clr", firstArg) == 0)|| (strcmp("pause", firstArg) == 0)|| (strcmp("path", firstArg) == 0)) {
+        return 1;
+    } else {
+        return 0;
+    }
+    
+}
+
+// *****************************************************
+// The following are not used yet. Still working out how to 
 // run multiple processes in background from one line of 
 // command arguments.
+// ******************************************************
 
 /**
  * The findWait function will find any ampersand in the arguments to check if

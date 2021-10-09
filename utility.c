@@ -149,7 +149,7 @@ int printHelp() {
     // Copy path to new char array to avoid changing environment variable.
     strcpy(helpLocation, shellPath);
     // Concat on the name of the help file.
-    strcat(helpLocation, "/help.txt");
+    strcat(helpLocation, "/readme");
     FILE *file = fopen(helpLocation, "r");
     if (file == NULL) {
         return -1;
