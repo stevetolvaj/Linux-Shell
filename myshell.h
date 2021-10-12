@@ -10,14 +10,14 @@
 #ifndef MyShell_H
 #define MyShell_H
 
-int changeDir(char **args);
-void clearPrompt();
-int countArgs(char **args);
-int printDirectory(char **args);
-int printEnvp(char **args);
-void echoPrint(char **args);
-int printHelp();
-void pausePrompt();
-int addPath (char **args);
+int change_dir(char **args);
+void clear_prompt();
+int count_args(char **args);
+int print_directory(char **args);
+int print_envp(char **args);
+void echo_print(char **args);
+int print_help();
+void pause_prompt();
+int add_path (char **args);
 
 #endif

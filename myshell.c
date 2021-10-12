@@ -23,18 +23,18 @@
 extern char **environ;
 
 void parser(char *input, char **args);
-void checkParsedArgs(char **args);
+void check_parsed(char **args);
 int redirect(char **args, int position);
-int redirectAppend(char **args, int position);
-int redirectInput(char **args, int *position);
-int execute(char **args, int *position);
-int findWait(char **args, int position);
-void removeArgs(char **args, int position);
-int runBuiltIns(char **args);
-int checkRedirectBuiltIn(char **args);
-int runPipe(char **args, int *position);
+int redirect_append(char **args, int position);
+int _redirect_input(char **args, int *position);
+int _execute(char **args, int *position);
+int background_condition(char **args);
+void remove_args(char **args, int position);
+int run_builtins(char **args);
+int builtin_redirect(char **args);
+int _run_pipe(char **args, int *position);
 
-const char error_message[30]="An error has occurred\n";
+const char g_error_message[30]="An error has occurred\n";
 
 
 int main(int argc, char const *argv[])
@@ -49,27 +49,27 @@ int main(int argc, char const *argv[])
     // Make and set new shell variable.
     setenv("shell", direct, 1);
  
-    // printHelp();
+    // print_help();
     FILE *input;
     char *args[MAX_ARGS];    // The arguments extracted from stdin or batch file after parsing.
     char *buff = NULL;     // The buffer used for getline().
     size_t size = 0;// Size used for getline().
-    int fileSpecifiedFlag = 0;  // Flag used to print prompt if batch file was not used.
+    int file_specified_flag = 0;  // Flag used to print prompt if batch file was not used.
     
     // If myshell is invoked with more than 1 file, print error and exit.
     if(argc > 2) {
-        write(STDERR_FILENO,error_message,strlen(error_message));
+        write(STDERR_FILENO,g_error_message,strlen(g_error_message));
         exit(1);
     }
     // If filename is specified in arguments set the file descriptor to stdin descriptor.
     if (argc == 2) { 
         input = fopen(argv[1], "r");
        
-        fileSpecifiedFlag = 1;
+        file_specified_flag = 1;
 
         // Exit with code 1 and specified error message if bad batch file.
         if (input == NULL) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             exit(1);
         }
     } else {    // Only print prompt if no batch file entered.
@@ -93,10 +93,10 @@ int main(int argc, char const *argv[])
         parser(buff, args);
 
         // Send the parsed args to check parsed args to check for redirection, piping, or execute command.
-        checkParsedArgs(args);
+        check_parsed(args);
 
         // Only print prompt if no batch file entered.
-        if (!fileSpecifiedFlag) {
+        if (!file_specified_flag) {
              printf("%s: myshell>", getenv("PWD"));
         } 
        
@@ -121,18 +121,22 @@ void parser(char *input, char **args) {
 }
 
 /**
- * The checkParsedArgs function will find and redirection, pipe, and run in background chars
+ * The check_parsed function will find and redirection, pipe, and run in background chars
  * and set the special char argument to NULL. Then it will send the arguments and position of
- * the special char to the apropriate function below. If nothing is found it will send to execute
+ * the special char to the apropriate function below. If nothing is found it will send to _execute
  * as normal child process.
  * 
  * @param args The arguments parsed by spaces.
 **/
-void checkParsedArgs(char **args) {
+void check_parsed(char **args) {
+    // Start checking for redirection and piping after first command.
     int i = 1;
     // Flag to indicate if function should run without piping or redirection.
-    int foundSpecial = 0;
-
+    int found_special = 0;
+    // Check if first arg is NULL if null return and get next line from input.
+    if(args[i - 1] == NULL) {
+        return;
+    }
     // Loop through until a pipe or redirection command is found.
     while(args[i] != NULL) {
         if(strcmp(args[i], ">") == 0) {
@@ -140,40 +144,42 @@ void checkParsedArgs(char **args) {
             args[i] = NULL;
 
             if (redirect(args, i) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             }
-            foundSpecial = 1;
+            found_special = 1;
         }
         else if(strcmp(args[i], ">>") == 0) {
             // Set terminating position of args so exec knows when to stop.
             args[i] = NULL;
-            if (redirectAppend(args, i) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+            if (redirect_append(args, i) == -1) {
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             }
-            foundSpecial = 1;
+            found_special = 1;
         } else if(strcmp(args[i], "<") == 0) {
             args[i] = NULL;
-            if (redirectInput(args, &i) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+            // update the position of i passed in by reference so same args are not searched and ran again.
+            if (_redirect_input(args, &i) == -1) { 
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             }
-            foundSpecial = 1;
+            found_special = 1;
         }  else if(strcmp(args[i], "|") == 0) {
             args[i] = NULL;
-            if (runPipe(args, &i) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+            // update the position of i passed in by reference so same args are not searched and ran again.
+            if (_run_pipe(args, &i) == -1) {  
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             }
-            foundSpecial = 1;
+            found_special = 1;
         }  
 
-        i++;
-        
+        i++; // Increment while checking each arg until end is reached.
     }
 
-    // If no special argument is found run as normal command as child process in execute function.
-    if (!foundSpecial)
+    // If no special argument is found run as normal command as child process in _execute function.
+    if (!found_special)
     {
-        if (execute(args, &i) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+        // update the position of i passed in by reference so same args are not searched and ran again.
+        if (_execute(args, &i) == -1) {
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
         }
     }
 }
@@ -190,7 +196,7 @@ void checkParsedArgs(char **args) {
 **/
 int redirect(char **args, int position) {
     
-    if(checkRedirectBuiltIn(args) == 1) {    // If built in cannot be redirected return -1 for error.
+    if(builtin_redirect(args) == 1) {    // If built in cannot be redirected return -1 for error.
         return -1;
     }
 
@@ -202,7 +208,7 @@ int redirect(char **args, int position) {
     
     // Check if built in should run or fork with exec.
     int stdO;
-    if(checkRedirectBuiltIn(args) == 2) {
+    if(builtin_redirect(args) == 2) {
         stdO = dup(STDOUT_FILENO);
         if(stdO == -1) {    // If failed return -1 for error checking.
             return -1;
@@ -213,7 +219,7 @@ int redirect(char **args, int position) {
             return -1;       // If failed return -1 for error checking.
         }
         close(fd);
-        runBuiltIns(args);
+        run_builtins(args);
         // Change back to original stdout.
         fflush(stdout);
         if (dup2(stdO, STDOUT_FILENO) == -1) {
@@ -228,12 +234,12 @@ int redirect(char **args, int position) {
             return -1;
         } else if (rc == 0) {
             if (dup2(fd, STDOUT_FILENO) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
                 exit(1);
             }
             close(fd);
             if (execvp(args[0], args) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
                 exit(1);
             }
             exit(0);
@@ -256,9 +262,9 @@ int redirect(char **args, int position) {
  * 
  * @return Will return -1 if failure occurred in parent process or 0 if successful.
 **/
-int redirectAppend(char **args, int position) {
+int redirect_append(char **args, int position) {
 
-    if(checkRedirectBuiltIn(args) == 1) {    // If built in cannot be redirected return -1 for error.
+    if(builtin_redirect(args) == 1) {    // If built in cannot be redirected return -1 for error.
         return -1;
     }
     
@@ -271,7 +277,7 @@ int redirectAppend(char **args, int position) {
 
     // Check if it is a built in command that can be redirected or fork and exec if not.
     int stdO;
-    if(checkRedirectBuiltIn(args) == 2) {
+    if(builtin_redirect(args) == 2) {
         stdO = dup(STDOUT_FILENO);
         if(stdO == -1) {    // If failed return -1 for error checking.
             return -1;
@@ -282,7 +288,7 @@ int redirectAppend(char **args, int position) {
             return -1;       // If failed return -1 for error checking.
         }
         close(fd);
-        runBuiltIns(args);
+        run_builtins(args);
         // Change back to original stdout.
         fflush(stdout);
         if (dup2(stdO, STDOUT_FILENO) == -1) {
@@ -298,12 +304,12 @@ int redirectAppend(char **args, int position) {
             return -1;
         } else if (rc == 0) {
             if (dup2(fd, STDOUT_FILENO) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
                 exit(1);
             }
             close(fd);
             if (execvp(args[0], args) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
                 exit(1);
             }
             exit(0);
@@ -315,7 +321,7 @@ int redirectAppend(char **args, int position) {
 }
 
 /**
- * The redirectInput function will direct the executed command args up to the first NULL in the arguments.
+ * The _redirect_input function will direct the executed command args up to the first NULL in the arguments.
  * This will cause a fork and run the arguments in a child function and direct input from the filename
  * located at the argument after the first NULL(Position + 1). If a '>' or '>>' is found after the filename
  * it will perform the output redirection required.
@@ -325,21 +331,21 @@ int redirectAppend(char **args, int position) {
  * 
  * @return Will return -1 if failure occurred in parent process or 0 if successful.
 **/
-int redirectInput(char **args, int *position) {
+int _redirect_input(char **args, int *position) {
 
-    int outFd; // Output file descriptor if needed to redirect out.
-    int redirectOut = 0; // Flag for checking if output is needed.
+    int out_fd; // Output file descriptor if needed to redirect out.
+    int redirect_out = 0; // Flag for checking if output is needed.
 
     // Check if next two args are null. If they are do not check for output redirection.
     if(args[*position+2] != NULL && args[*position+3] != NULL) {
         // Check if truncation or appending is needed for file descriptors if '>' or '>>' is found.
         if(strcmp(args[*position + 2], ">") == 0) {
-            outFd = open(args[*position + 3], O_CREAT | O_TRUNC | O_WRONLY, S_IRWXU);  
-            redirectOut = 1;
+            out_fd = open(args[*position + 3], O_CREAT | O_TRUNC | O_WRONLY, S_IRWXU);  
+            redirect_out = 1;
         }
         if(strcmp(args[*position + 2], ">>") == 0) {
-            outFd = open(args[*position + 3], O_CREAT | O_APPEND | O_WRONLY, S_IRWXU);  
-            redirectOut = 1;     
+            out_fd = open(args[*position + 3], O_CREAT | O_APPEND | O_WRONLY, S_IRWXU);  
+            redirect_out = 1;     
         }
     }
 
@@ -358,22 +364,22 @@ int redirectInput(char **args, int *position) {
     } else if (rc == 0) {
 
         if (dup2(fd, STDIN_FILENO) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             exit(1);
         }
         
         // Redirect to output if output redirect is found.
-        if(redirectOut == 1) {
-            if(dup2(outFd, STDOUT_FILENO) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+        if(redirect_out == 1) {
+            if(dup2(out_fd, STDOUT_FILENO) == -1) {
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
                 exit(1);
             }
-            close(outFd);
+            close(out_fd);
         }
         
         close(fd);
         if (execvp(args[0], args) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             exit(1);
         }
         exit(0);
@@ -383,7 +389,7 @@ int redirectInput(char **args, int *position) {
 
         // If output redirection was found in args increase position in while loop to the output
         // filename location.
-        if(redirectOut) {
+        if(redirect_out) {
              (*position) += 3;
         }
        
@@ -393,7 +399,7 @@ int redirectInput(char **args, int *position) {
 }
 
 /**
- * The execute function will fork and create a child process for the
+ * The _execute function will fork and create a child process for the
  * execution of arguments. Only used when redirection or piping is not needed.
  * 
  * @param args The line of arguments from user input.
@@ -401,15 +407,19 @@ int redirectInput(char **args, int *position) {
  * 
  * @return Will return -1 if failure occurred or 0 if successful.
 **/
-int execute(char **args, int *position) {
+int _execute(char **args, int *position) {
   
     // Testing for running in background.
-    // int shouldWait = findWait(args, *position);
-
+    int should_wait = 1;
+    // If last arg is '&' set should wait to 0 and '&' to null.
+    if (args[*position - 1] != NULL && strcmp(args[*position - 1], "&") == 0) {
+        should_wait = 0;
+        args[*position - 1] = NULL;
+    }
     // Check if it is a built in command. Does not matter if it is redirectable by the time
     // it reaches this function.
-    if(checkRedirectBuiltIn(args) == 1 || checkRedirectBuiltIn(args) == 2) {
-        runBuiltIns(args);
+    if(builtin_redirect(args) == 1 || builtin_redirect(args) == 2) {
+        run_builtins(args);
     } else {
          int rc = fork();
 
@@ -418,20 +428,30 @@ int execute(char **args, int *position) {
             return -1;
         } else if (rc == 0) { 
             if (execvp(args[0], args) == -1) {
-                write(STDERR_FILENO,error_message,strlen(error_message));
+                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
                 exit(1);
             }
+     
         exit(0);
     } else {
-            wait(NULL);
-        }
+         if (should_wait == 1){
+              wait(NULL);
+         } else {
+            int c;
+            // Clear stdin from background process.
+            while ((c = getchar()) != '\n' && c != EOF) { }
+            printf("Returned from process PID: %d\n", rc);
+            // check_parsed(args);
+            }
+         }
+        
     }
    
     return 0;
 }
 
 /**
- * The runBuiltIns function will run the built in command if the first argument
+ * The run_builtins function will run the built in command if the first argument
  * corresponds to a built in function. If it does it is called and 
  * checked for errors.
  * 
@@ -439,37 +459,37 @@ int execute(char **args, int *position) {
  * 
  * @return 0 if no built in functions were called, 1 if built in.
 **/
-int runBuiltIns(char **args) {
-    char *firstArg = args[0];
+int run_builtins(char **args) {
+    char *first_arg = args[0];
     
-    if(strcmp("cd", firstArg) == 0) {
-        if (changeDir(args) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+    if(strcmp("cd", first_arg) == 0) {
+        if (change_dir(args) == -1) {
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
         }
-    } else if(strcmp("clr", firstArg) == 0) {
-        clearPrompt();
+    } else if(strcmp("clr", first_arg) == 0) {
+        clear_prompt();
         // no return if succesful
-    } else if(strcmp("dir", firstArg) == 0) {
-        if (printDirectory(args) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+    } else if(strcmp("dir", first_arg) == 0) {
+        if (print_directory(args) == -1) {
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
         }
-    }else if(strcmp("environ", firstArg) == 0) {
-        if (printEnvp(environ) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+    }else if(strcmp("environ", first_arg) == 0) {
+        if (print_envp(environ) == -1) {
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
         }
-    }else if(strcmp("echo", firstArg) == 0) {
-        echoPrint(args);
+    }else if(strcmp("echo", first_arg) == 0) {
+        echo_print(args);
         // No return value if succesfull.
-    }else if(strcmp("help", firstArg) == 0) {
-        if (printHelp() == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+    }else if(strcmp("help", first_arg) == 0) {
+        if (print_help() == -1) {
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
         }
-    }else if(strcmp("pause", firstArg) == 0) {
-        pausePrompt();
+    }else if(strcmp("pause", first_arg) == 0) {
+        pause_prompt();
         // no return if succesful
-    }else if(strcmp("path", firstArg) == 0) {
-        if (addPath(args) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+    }else if(strcmp("path", first_arg) == 0) {
+        if (add_path(args) == -1) {
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
         }
     }else {
         // If no built in found return 0;
@@ -480,23 +500,23 @@ int runBuiltIns(char **args) {
 }
 
 /**
- * The checkRedirectBuiltIn function will check if it is a built in function
+ * The builtin_redirect function will check if it is a built in function
  * call, a redirectable built in, or not a built in function.
  * 
  * @param args The arguments to check.
  * 
  * @return 0 if not built in function. 1 if it is a built in function. 2 if the built in function is redirectable.
 **/
-int checkRedirectBuiltIn(char **args) {
+int builtin_redirect(char **args) {
     int i = 0;
-    char *firstArg;
+    char *first_arg;
    
-    firstArg = args[i++];
+    first_arg = args[i++];
     // Check for redirectable built in first.
 
-    if((strcmp("dir", firstArg) == 0) || (strcmp("environ", firstArg) == 0)|| (strcmp("echo", firstArg) == 0)|| (strcmp("help", firstArg) == 0)) {
+    if((strcmp("dir", first_arg) == 0) || (strcmp("environ", first_arg) == 0)|| (strcmp("echo", first_arg) == 0)|| (strcmp("help", first_arg) == 0)) {
         return 2;
-    } else if((strcmp("cd", firstArg) == 0) || (strcmp("clr", firstArg) == 0)|| (strcmp("pause", firstArg) == 0)|| (strcmp("path", firstArg) == 0)) {
+    } else if((strcmp("cd", first_arg) == 0) || (strcmp("clr", first_arg) == 0)|| (strcmp("pause", first_arg) == 0)|| (strcmp("path", first_arg) == 0)) {
         return 1;
     } else {
         return 0;
@@ -511,7 +531,7 @@ int checkRedirectBuiltIn(char **args) {
  * 
  * @return 0 if succesfull or -1 if failure occured in parent process.
 **/
-int runPipe(char **args, int *position) {
+int _run_pipe(char **args, int *position) {
     // Split args between the | character into two seperate arrays.
     char *args1[MAX_ARGS];
     char *args2[MAX_ARGS];
@@ -534,9 +554,9 @@ int runPipe(char **args, int *position) {
 
     args2[i] = NULL; // Set last arg to null.
 
-    int pipeDescriptor[2];
+    int pipe_descriptor[2];
 
-    if(pipe(pipeDescriptor) == -1) {
+    if(pipe(pipe_descriptor) == -1) {
         return -1;
     }
 
@@ -547,14 +567,14 @@ int runPipe(char **args, int *position) {
         return -1;
     }
     if (rc1 == 0) {
-        if(dup2(pipeDescriptor[1], STDOUT_FILENO) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+        if(dup2(pipe_descriptor[1], STDOUT_FILENO) == -1) {
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             exit(1);
         }
-        close(pipeDescriptor[0]);
-        close(pipeDescriptor[1]);
+        close(pipe_descriptor[0]);
+        close(pipe_descriptor[1]);
         if(execvp(args1[0], args1) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             exit(1);
         }
         exit(0);
@@ -567,22 +587,22 @@ int runPipe(char **args, int *position) {
         return -1;
     }
     if (rc2 == 0) {
-        if(dup2(pipeDescriptor[0], STDIN_FILENO) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+        if(dup2(pipe_descriptor[0], STDIN_FILENO) == -1) {
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             exit(1);
         }
-        close(pipeDescriptor[0]);
-        close(pipeDescriptor[1]);
+        close(pipe_descriptor[0]);
+        close(pipe_descriptor[1]);
         if(execvp(args2[0], args2) == -1) {
-            write(STDERR_FILENO,error_message,strlen(error_message));
+            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
             exit(1);
         }
         exit(0);
     }
     
     // Close open file descriptors in parent process.
-    close(pipeDescriptor[0]);
-    close(pipeDescriptor[1]);
+    close(pipe_descriptor[0]);
+    close(pipe_descriptor[1]);
 
     // Wait for both children to finish.
     waitpid(rc1, NULL, 0);
@@ -592,7 +612,7 @@ int runPipe(char **args, int *position) {
 }
 
 /**
- * The findWait function will find any ampersand in the arguments to check if
+ * The background_condition function will find any ampersand in the arguments to check if
  * process should run in the background. It will also set the ampersand char array to 
  * NULL in the supplied args argument.
  * 
@@ -601,7 +621,7 @@ int runPipe(char **args, int *position) {
  * 
  * @return The position of the ampersand that was found.
 **/
-int findWait(char **args, int position) {
+int background_condition(char **args) {
     // Start loop at position of special char.
     // Start at end - 1 if position was already at NULL terminator.
     int i = 0;

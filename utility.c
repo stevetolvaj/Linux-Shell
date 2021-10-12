@@ -11,10 +11,15 @@
 #include<stdlib.h>
 #include<dirent.h>
 #include<string.h>
+#include<sys/ioctl.h>
 #include"myshell.h"
 
+#include<sys/types.h>
+#include<sys/wait.h>
+
+
 /**
- * The changeDir function will change the directory with the supplied
+ * The change_dir function will change the directory with the supplied
  * arguments the first argument should be cd which is checked beforehand.
  * The second argument will either be NULL and will print the current working 
  * directory or will contain the directory to change to.
@@ -23,8 +28,8 @@
  * 
  * @return Will return 0 if succesful or -1 if error occured.
 **/
-int changeDir(char **args) {
-    int count = countArgs(args);
+int change_dir(char **args) {
+    int count = count_args(args);
     int rc;
     char direct[PATH_MAX];
 
@@ -53,14 +58,14 @@ int changeDir(char **args) {
 }
 
 /**
- * The clearPrompt function will clear and remaining prompts and output shown in command line output.
+ * The clear_prompt function will clear and remaining prompts and output shown in command line output.
 **/
-void clearPrompt() {
+void clear_prompt() {
     printf("\e[1;1H\e[2J");
 }
 
 /**
- * The printDirectory function will print the current directory contents if no arguments other than 
+ * The print_directory function will print the current directory contents if no arguments other than 
  * the first command is supplied. If there is a directory location after the command it will then print
  * that locations directory contents.
  * 
@@ -68,39 +73,39 @@ void clearPrompt() {
  * 
  * @return Will return 0 if succesful or -1 if failure occured.
 **/
-int printDirectory(char **args) {
+int print_directory(char **args) {
     struct dirent *entry;
-    DIR *openDirectory; 
+    DIR *open_directory; 
     
     // If only built in command is supplied print current directory.
-    if (countArgs(args) == 1) {
-        openDirectory = opendir(".");
+    if (count_args(args) == 1) {
+        open_directory = opendir(".");
     } else if (args[1] != NULL) {   // If there is an arg present after try to run on that directory.
-        openDirectory = opendir(args[1]);
+        open_directory = opendir(args[1]);
     }
     
 
-    if(openDirectory == NULL) {
+    if(open_directory == NULL) {
         return -1;
     }
 
-    while((entry = readdir(openDirectory)) != NULL) {
+    while((entry = readdir(open_directory)) != NULL) {
         printf("%s\n", entry->d_name);
     }
 
-    closedir(openDirectory);
+    closedir(open_directory);
     return 0;
 }
 
 /**
- * The printEnvp will print a const NULL terminated array of character arrays. Useful for printing
+ * The print_envp will print a const NULL terminated array of character arrays. Useful for printing
  * enviroment variables from main function parameter envp and test printing const **char types.
  * 
  * @param args Any null terminated array of char arrays.
  * 
  * @return If succesful, will return 0, otherwise returns 0.
 **/
-int printEnvp(char **args) {
+int print_envp(char **args) {
     int i = 0;
 
     while(args[i] != NULL) {
@@ -121,7 +126,7 @@ int printEnvp(char **args) {
  *@param args The arguments to print after index 0. 
  * 
 **/
-void echoPrint(char **args) {
+void echo_print(char **args) {
     int i = 1;
 
     while(args[i] != NULL) {
@@ -131,35 +136,48 @@ void echoPrint(char **args) {
 }
 
 /**
- * The printHelp function will print the myshell manual located in help.txt
+ * The print_help function will print the myshell manual located in help.txt
  * located in the original exe directory.
  * 
  * @return 0 if successful or -1 if failure.
 **/
-int printHelp() {
+int print_help() {
 
     // Save original shell path set when program started.
-    char *shellPath = getenv("shell");
+    char *shell_path = getenv("shell");
+    // Get window size to only display first page of help.
+    struct winsize wsize;
+    ioctl(0, TIOCGWINSZ, &wsize);
 
-    if(shellPath == NULL){
+    if(shell_path == NULL){
         return -1;
     }
 
-    char helpLocation[PATH_MAX];
+    char help_location[PATH_MAX];
     // Copy path to new char array to avoid changing environment variable.
-    strcpy(helpLocation, shellPath);
+    strcpy(help_location, shell_path);
     // Concat on the name of the help file.
-    strcat(helpLocation, "/readme");
-    FILE *file = fopen(helpLocation, "r");
+    strcat(help_location, "/readme");
+    FILE *file = fopen(help_location, "r");
     if (file == NULL) {
         return -1;
     } 
 
     char *buff = NULL;
     size_t size = 0;
-
+    int count = 0;
     while (getline(&buff, &size, file) != -1) {
+        if(count >= wsize.ws_row - 1) {
+            printf("\033[31mPress any key to continue reading the next page.");
+            printf("\b");
+            getchar();
+            count = 0;
+            printf("\033[37m");
+        }
+
         printf("%s", buff);
+        count++;
+        
     }
     printf("\n");
 
@@ -168,14 +186,14 @@ int printHelp() {
 }
 
 /**
- * The pausePrompt function will pause the program until the enter key is pressed.
+ * The pause_prompt function will pause the program until the enter key is pressed.
 **/
-void pausePrompt() {
+void pause_prompt() {
     while(getchar() != '\n') {}
 }
 
 /**
- * The addPath function will add any new path enviroment variables specified
+ * The add_path function will add any new path enviroment variables specified
  * by the user input starting at argument 1. All extra path args greater than 1
  * will be seperated by ';'.
  * 
@@ -183,8 +201,8 @@ void pausePrompt() {
  * 
  * @return -1 if failure, 0 if successful.
 **/
-int addPath (char **args) {
-    int count = countArgs(args);
+int add_path (char **args) {
+    int count = count_args(args);
     int i = 2;
 
     // No argumnets supplied after command.
@@ -216,14 +234,14 @@ int addPath (char **args) {
 }
 
 /**
- * The countArgs function will count any arguments that occur before the NULL 
+ * The count_args function will count any arguments that occur before the NULL 
  * terminator character array.
  * 
  * @param args The array of args to count.
  * 
  * @return The number of args found before NULL occured.
 **/
-int countArgs(char **args) {
+int count_args(char **args) {
     int count = 0;
     while(args[count] != NULL) {
         count++;
