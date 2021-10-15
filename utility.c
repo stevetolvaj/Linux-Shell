@@ -13,7 +13,6 @@
 #include<string.h>
 #include<sys/ioctl.h>
 #include"myshell.h"
-
 #include<sys/types.h>
 #include<sys/wait.h>
 
@@ -43,7 +42,6 @@ int change_dir(char **args) {
         } else {
             return -1;
         }
-        
     }
     
     rc = chdir(args[1]);
@@ -84,7 +82,6 @@ int print_directory(char **args) {
         open_directory = opendir(args[1]);
     }
     
-
     if(open_directory == NULL) {
         return -1;
     }
@@ -145,9 +142,6 @@ int print_help() {
 
     // Save original shell path set when program started.
     char *shell_path = getenv("shell");
-    // Get window size to only display first page of help.
-    struct winsize wsize;
-    ioctl(0, TIOCGWINSZ, &wsize);
 
     if(shell_path == NULL){
         return -1;
@@ -158,30 +152,22 @@ int print_help() {
     strcpy(help_location, shell_path);
     // Concat on the name of the help file.
     strcat(help_location, "/readme");
-    FILE *file = fopen(help_location, "r");
-    if (file == NULL) {
+
+    char *arg[3] = {"more", help_location, NULL};
+
+    int rc = fork();
+
+    if (rc < 0) {
         return -1;
-    } 
-
-    char *buff = NULL;
-    size_t size = 0;
-    int count = 0;
-    while (getline(&buff, &size, file) != -1) {
-        if(count >= wsize.ws_row - 1) {
-            // Change scroll prompt to red.
-            printf("\033[31mPress enter key to continue reading the next page.");
-            getchar();
-            count = 0;
-            printf("\033[37m");
+    } else if (rc == 0) {
+        if (execvp(arg[0], arg) == -1) {
+            return -1;
         }
-
-        printf("%s", buff);
-        count++;
-        
+    } else {
+        waitpid(rc, NULL, 0);
     }
-    printf("\n");
-
-    free(buff);
+    
+    
     return 0;
 }
 
