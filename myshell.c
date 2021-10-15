@@ -3,9 +3,14 @@
  * CIS 3207 001
  * Project 2: Creating a Linux Type Shell Program
  * 
- * The myshell.c file includes redirection and logic for the user prompts. This includes
- * the calls to the built in functions located in utility.c which is linked by the header file
- * myshell.h.
+ * The myshell.c file includes redirection, piping, background execution 
+ * and logic for the user prompts. This includes the calls to the built 
+ * in functions located in utility.c which is linked by the header file
+ * myshell.h. The check_parsed function keeps the positions of any 
+ * redirection or piping characters found in args. There are 3 functions
+ * starting with underscores that may update this position integer when 
+ * passed in as an argument: _redirect_input, _execute, _run_pipe, to 
+ * update position of args being checked in check_parsed().
 **/
 
 #include<stdio.h>
@@ -28,7 +33,6 @@ int redirect(char **args, int position);
 int redirect_append(char **args, int position);
 int _redirect_input(char **args, int *position);
 int _execute(char **args, int *position);
-int background_condition(char **args);
 void remove_args(char **args, int position);
 int run_builtins(char **args);
 int builtin_redirect(char **args);
@@ -36,13 +40,10 @@ int _run_pipe(char **args, int *position);
 
 const char error_message[30]="An error has occurred\n";
 
-
 int main(int argc, char const *argv[])
 {
-    
-    
-    // The shell environment should contain shell=<pathname>/myshell where path is the directory
-    // of the myshell exe.
+    // The shell environment should contain 'shell=<pathname>/myshell' where path is the directory
+    // of the myshell exe as per instructions.
     char direct[PATH_MAX];
     // Get current directory that the program was started from.
     getcwd(direct,PATH_MAX);
@@ -66,9 +67,7 @@ int main(int argc, char const *argv[])
     // If filename is specified in arguments set the file descriptor to stdin descriptor.
     if (argc == 2) { 
         input = fopen(argv[1], "r");
-       
         file_specified_flag = 1;
-
         // Exit with code 1 and specified error message if bad batch file.
         if (input == NULL) {
             write(STDERR_FILENO,error_message,strlen(error_message));
@@ -78,32 +77,26 @@ int main(int argc, char const *argv[])
         input = stdin;
         printf("%s: myshell>", getenv("PWD"));
     }
-    
     // Read input from stdin.
     while(getline(&buff, &size, input) != -1) {
         // Replace newline with \0 if exists.
         if(strchr(buff, '\n') != NULL) {
             buff[strlen(buff) - 1] = '\0';
         }
-        
         // If quit is typed exit with 0.
         if (strcmp(buff, "quit") == 0 || strcmp(buff, "exit") == 0) {
             exit(0);
         }
-
         // Send buff to parser and stored parsed char arrays in args.
         parser(buff, args);
-
         // Send the parsed args to check parsed args to check for redirection, piping, or execute command.
         check_parsed(args);
         // printf("%s: myshell>", getenv("PWD"));
         // Only print prompt if no batch file entered.
         if (!file_specified_flag) {
              printf("%s: myshell>", getenv("PWD"));
-        } 
-       
-    }
-    
+        }      
+    }  
     free(buff);
     fclose(input);
     return 0;
@@ -123,10 +116,10 @@ void parser(char *input, char **args) {
 }
 
 /**
- * The check_parsed function will find and redirection, pipe, and run in background chars
- * and set the special char argument to NULL. Then it will send the arguments and position of
- * the special char to the apropriate function below. If nothing is found it will send to _execute
- * as normal child process.
+ * The check_parsed function will find and redirection, pipe, or execute if neither
+ * and set the special char argument to NULL. Then it will send the arguments and 
+ * position of the special char to the apropriate function below. If nothing is 
+ * found it will send to _execute as normal child process.
  * 
  * @param args The arguments parsed by spaces.
 **/
@@ -144,7 +137,6 @@ void check_parsed(char **args) {
         if(strcmp(args[i], ">") == 0) {
             // Set terminating position of args so exec knows when to stop.
             args[i] = NULL;
-
             if (redirect(args, i) == -1) {
                 write(STDERR_FILENO,error_message,strlen(error_message));
             }
@@ -172,8 +164,7 @@ void check_parsed(char **args) {
             }
             found_special = 1;
         }  
-
-        i++; // Increment while checking each arg until end is reached.
+        i++; // Increment while checking each arg until end of args is reached.
     }
 
     // If no special argument is found run as normal command as child process in _execute function.
@@ -183,7 +174,6 @@ void check_parsed(char **args) {
         if (_execute(args, &i) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
         }
-        
     }
 }
 
@@ -198,7 +188,6 @@ void check_parsed(char **args) {
  * @return Will return -1 if failure occurred or 0 if successful.
 **/
 int redirect(char **args, int position) {
-    
     if(builtin_redirect(args) == 1) {    // If built in cannot be redirected return -1 for error.
         return -1;
     }
@@ -208,7 +197,7 @@ int redirect(char **args, int position) {
     if(fd == -1) {
         return -1;
     }
-    
+
     // Check if built in should run or fork with exec.
     int stdO;
     if(builtin_redirect(args) == 2) {
@@ -247,10 +236,9 @@ int redirect(char **args, int position) {
             }
             exit(0);
         } else {
-            wait(NULL);
+            waitpid(rc, NULL, 0);
         }
     }
-   
     return 0;
 }
 
@@ -317,7 +305,7 @@ int redirect_append(char **args, int position) {
             }
             exit(0);
         } else {
-            wait(NULL);
+            waitpid(rc, NULL, 0);
         }
     }
     return 0;
@@ -330,7 +318,7 @@ int redirect_append(char **args, int position) {
  * it will perform the output redirection required.
  * 
  * @param args The line of arguments from user input.
- * @param position The position of the first null located in args.
+ * @param position The position of the first '<' found, this position may be updated in function.
  * 
  * @return Will return -1 if failure occurred in parent process or 0 if successful.
 **/
@@ -406,7 +394,8 @@ int _redirect_input(char **args, int *position) {
  * execution of arguments. Only used when redirection or piping is not needed.
  * 
  * @param args The line of arguments from user input.
- * @param position The position of the first null located in args.
+ * @param position The position of the first null located in args,
+ * this position may be updated in function.
  * 
  * @return Will return -1 if failure occurred or 0 if successful.
 **/
@@ -436,21 +425,19 @@ int _execute(char **args, int *position) {
             }
      
         exit(0);
-    } else {
+    } else {    // No '&' found so wait.
          if (should_wait == 1){
               waitpid(rc, NULL, 0);
-         } else {
+         } else {   // '&' found, do not wait.
             int c;
             while ((c = getchar()) != '\n' && c != EOF) { }
-        
+            // If enter is pressed print return message and kill child process.
             printf("Returned from background process %d\n", rc);
             // Terminate child process
             kill(rc, SIGKILL);
             }
-         }
-        
+         } 
     }
-   
     return 0;
 }
 
@@ -505,11 +492,12 @@ int run_builtins(char **args) {
 
 /**
  * The builtin_redirect function will check if it is a built in function
- * call, a redirectable built in, or not a built in function.
+ * call, a redirectable built in, or not.
  * 
  * @param args The arguments to check.
  * 
- * @return 0 if not built in function. 1 if it is a built in function. 2 if the built in function is redirectable.
+ * @return 0 if not built in function. 1 if it is a built in function. 
+ * 2 if the built in function is redirectable.
 **/
 int builtin_redirect(char **args) {
     int i = 0;
@@ -613,29 +601,3 @@ int _run_pipe(char **args, int *position) {
 
     return 0;
 }
-
-/**
- * The background_condition function will find any ampersand in the arguments to check if
- * process should run in the background. It will also set the ampersand char array to 
- * NULL in the supplied args argument.
- * 
- * @param args The arguments to search through.
- * @param args The position to start the search at.
- * 
- * @return The position of the ampersand that was found.
-**/
-int background_condition(char **args) {
-    // Start loop at position of special char.
-    // Start at end - 1 if position was already at NULL terminator.
-    int i = 0;
-
-    while(args[i] != NULL) {
-        if (strcmp(args[i], "&") == 0) {
-            args[i] = NULL;
-            return i;
-        }
-        i++;
-    }
-    return 0;
-}
-
