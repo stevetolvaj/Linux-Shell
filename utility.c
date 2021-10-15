@@ -168,8 +168,8 @@ int print_help() {
     int count = 0;
     while (getline(&buff, &size, file) != -1) {
         if(count >= wsize.ws_row - 1) {
-            printf("\033[31mPress any key to continue reading the next page.");
-            printf("\b");
+            // Change scroll prompt to red.
+            printf("\033[31mPress enter key to continue reading the next page.");
             getchar();
             count = 0;
             printf("\033[37m");
