@@ -34,22 +34,24 @@ int run_builtins(char **args);
 int builtin_redirect(char **args);
 int _run_pipe(char **args, int *position);
 
-const char g_error_message[30]="An error has occurred\n";
+const char error_message[30]="An error has occurred\n";
 
 
 int main(int argc, char const *argv[])
 {
     
-    // Ovewrite path variable to only contain /bin at start of program.
-    setenv("PATH","/bin", 1);
-    // The shell environment should contain shell=<pathname>/myshell where <pathname>/myshell
+    
+    // The shell environment should contain shell=<pathname>/myshell where path is the directory
+    // of the myshell exe.
     char direct[PATH_MAX];
     // Get current directory that the program was started from.
     getcwd(direct,PATH_MAX);
     // Make and set new shell variable.
     setenv("shell", direct, 1);
- 
-    // print_help();
+   
+    // Your initial shell path should contain one directory '/bin' as per instructions.
+    setenv("PATH","/bin", 1);
+
     FILE *input;
     char *args[MAX_ARGS];    // The arguments extracted from stdin or batch file after parsing.
     char *buff = NULL;     // The buffer used for getline().
@@ -58,7 +60,7 @@ int main(int argc, char const *argv[])
     
     // If myshell is invoked with more than 1 file, print error and exit.
     if(argc > 2) {
-        write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+        write(STDERR_FILENO,error_message,strlen(error_message));
         exit(1);
     }
     // If filename is specified in arguments set the file descriptor to stdin descriptor.
@@ -69,7 +71,7 @@ int main(int argc, char const *argv[])
 
         // Exit with code 1 and specified error message if bad batch file.
         if (input == NULL) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
     } else {    // Only print prompt if no batch file entered.
@@ -94,7 +96,7 @@ int main(int argc, char const *argv[])
 
         // Send the parsed args to check parsed args to check for redirection, piping, or execute command.
         check_parsed(args);
-
+        // printf("%s: myshell>", getenv("PWD"));
         // Only print prompt if no batch file entered.
         if (!file_specified_flag) {
              printf("%s: myshell>", getenv("PWD"));
@@ -144,7 +146,7 @@ void check_parsed(char **args) {
             args[i] = NULL;
 
             if (redirect(args, i) == -1) {
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
             }
             found_special = 1;
         }
@@ -152,21 +154,21 @@ void check_parsed(char **args) {
             // Set terminating position of args so exec knows when to stop.
             args[i] = NULL;
             if (redirect_append(args, i) == -1) {
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
             }
             found_special = 1;
         } else if(strcmp(args[i], "<") == 0) {
             args[i] = NULL;
             // update the position of i passed in by reference so same args are not searched and ran again.
             if (_redirect_input(args, &i) == -1) { 
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
             }
             found_special = 1;
         }  else if(strcmp(args[i], "|") == 0) {
             args[i] = NULL;
             // update the position of i passed in by reference so same args are not searched and ran again.
             if (_run_pipe(args, &i) == -1) {  
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
             }
             found_special = 1;
         }  
@@ -179,8 +181,9 @@ void check_parsed(char **args) {
     {
         // update the position of i passed in by reference so same args are not searched and ran again.
         if (_execute(args, &i) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
         }
+        
     }
 }
 
@@ -234,12 +237,12 @@ int redirect(char **args, int position) {
             return -1;
         } else if (rc == 0) {
             if (dup2(fd, STDOUT_FILENO) == -1) {
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
                 exit(1);
             }
             close(fd);
             if (execvp(args[0], args) == -1) {
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
                 exit(1);
             }
             exit(0);
@@ -304,12 +307,12 @@ int redirect_append(char **args, int position) {
             return -1;
         } else if (rc == 0) {
             if (dup2(fd, STDOUT_FILENO) == -1) {
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
                 exit(1);
             }
             close(fd);
             if (execvp(args[0], args) == -1) {
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
                 exit(1);
             }
             exit(0);
@@ -364,14 +367,14 @@ int _redirect_input(char **args, int *position) {
     } else if (rc == 0) {
 
         if (dup2(fd, STDIN_FILENO) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
         
         // Redirect to output if output redirect is found.
         if(redirect_out == 1) {
             if(dup2(out_fd, STDOUT_FILENO) == -1) {
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
                 exit(1);
             }
             close(out_fd);
@@ -379,13 +382,13 @@ int _redirect_input(char **args, int *position) {
         
         close(fd);
         if (execvp(args[0], args) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
         exit(0);
     } else {
       
-        wait(NULL);
+        waitpid(rc, NULL, 0);
 
         // If output redirection was found in args increase position in while loop to the output
         // filename location.
@@ -428,20 +431,21 @@ int _execute(char **args, int *position) {
             return -1;
         } else if (rc == 0) { 
             if (execvp(args[0], args) == -1) {
-                write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+                write(STDERR_FILENO,error_message,strlen(error_message));
                 exit(1);
             }
      
         exit(0);
     } else {
          if (should_wait == 1){
-              wait(NULL);
+              waitpid(rc, NULL, 0);
          } else {
             int c;
-            // Clear stdin from background process.
             while ((c = getchar()) != '\n' && c != EOF) { }
-            printf("Returned from process PID: %d\n", rc);
-            // check_parsed(args);
+        
+            printf("Returned from background process %d\n", rc);
+            // Terminate child process
+            kill(rc, SIGKILL);
             }
          }
         
@@ -464,32 +468,32 @@ int run_builtins(char **args) {
     
     if(strcmp("cd", first_arg) == 0) {
         if (change_dir(args) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
         }
     } else if(strcmp("clr", first_arg) == 0) {
         clear_prompt();
         // no return if succesful
     } else if(strcmp("dir", first_arg) == 0) {
         if (print_directory(args) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
         }
     }else if(strcmp("environ", first_arg) == 0) {
         if (print_envp(environ) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
         }
     }else if(strcmp("echo", first_arg) == 0) {
         echo_print(args);
         // No return value if succesfull.
     }else if(strcmp("help", first_arg) == 0) {
         if (print_help() == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
         }
     }else if(strcmp("pause", first_arg) == 0) {
         pause_prompt();
         // no return if succesful
     }else if(strcmp("path", first_arg) == 0) {
         if (add_path(args) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
         }
     }else {
         // If no built in found return 0;
@@ -521,7 +525,6 @@ int builtin_redirect(char **args) {
     } else {
         return 0;
     }
-    
 }
 
 /**
@@ -568,13 +571,13 @@ int _run_pipe(char **args, int *position) {
     }
     if (rc1 == 0) {
         if(dup2(pipe_descriptor[1], STDOUT_FILENO) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
         close(pipe_descriptor[0]);
         close(pipe_descriptor[1]);
         if(execvp(args1[0], args1) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
         exit(0);
@@ -588,13 +591,13 @@ int _run_pipe(char **args, int *position) {
     }
     if (rc2 == 0) {
         if(dup2(pipe_descriptor[0], STDIN_FILENO) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
         close(pipe_descriptor[0]);
         close(pipe_descriptor[1]);
         if(execvp(args2[0], args2) == -1) {
-            write(STDERR_FILENO,g_error_message,strlen(g_error_message));
+            write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
         }
         exit(0);

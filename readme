@@ -1,39 +1,78 @@
 myshell: A Linux Type Shell
 
-How to Use: 
-Navigate to the directory that contains the executable myshell. 
-Once in the directory execute myshell by typing ./myshell. 
-This will start a prompt that will continue until exit or quit is typed. 
-The prompt will contain the current directory followed by ': myshell>'. 
-This is especially useful when using the change directory command 'cd' to 
-keep track of the current directory your PWD environment variable is in.
+Purpose:
+	The purpose of the myshell program is to allow execution of
+	commands in a user friendly enviroment. It allows use of any
+	executables found in the '/bin' folder by default and using 
+	the path command will allow more directories to be used for 
+	more flexibility. Instructions and different features can be 
+	found below.
 
-Built-in Functions:
-cd – The cd command can be stands for change directory. When used without a 
-	directory location or any or any other arguments after typing 'cd', 
-	it will simply print the current directory path. When used with a 
-	specific directory path, it will change the current directory to the 
-	one that was specified. It will work with the same shortcuts for 
-	directory changes as in other shells such as bash.
-clr – The clr command will clear any text that is left on the screen and print
-	a new prompt.
-dir – The dir command will print the current directories content names by 
-	typing 'dir'. If a specific path is specified after typing 'dir' 
-	it will print the contents of the directory path that was entered.
-environ – The environ command will print all current and up to date environment
-	variables by typing 'environ'.
-echo – The echo command will repeat anything that is typed after 'echo' is 
-	entered. It will be printed on a new line. If nothing is typed after 
-	the command it will print a new line and the shell will continue.
-help – The help command will display the current readme file. It will display 
-	exactly enough text to fill the size of the terminal window. Instead 
-	of scrolling enter is pressed to advance to the next page.
-pause – The pause command will stop the program and stop printing to the prompt 
-	until the enter key is pressed.
-quit – The quit command is used to exit the program. An alternative can be 
-	exit or terminating the program using system shortcuts.
-path – The path command is used to set the PATH environment variable. 
-	If nothing is entered after 'path' is typed it will reset the PATH 
-	to contain no variables. It can accept more than one path specified after 
-	'path' is typed and will separate the paths accordingly. The initial PATH
-	 variable is '/bin' when the program starts.
+How to Use: 
+	Navigate to the directory that contains the executable myshell. 
+	Once in the directory execute myshell by typing ./myshell. 
+	This will start a prompt that will continue until exit or quit is typed. 
+	If ./myshell <filename> is typed where filename is a batch file that 
+	contains valid commands, then all commands will be executed line by line.
+	If more than one filename is specified then the program will exit with an
+	error message. The prompt will contain the current directory followed by 
+	': myshell>'. This is especially useful when using the change directory 
+	command 'cd' to keep track of the current directory your PWD environment 
+	variable is in.All commands must be seperated by spaces, multiple spaces, or 
+	tabs. This is then executed by pressing the enter key. Each string of 
+	commands is read line by line. Starting the myshell program will reset 
+	the 'PATH' environment variable to only include the /bin folder directory.
+	It will also create a new environment variable named 'shell' which will 
+	contain the directory that the program was executed from.
+
+Features:
+	Output Redirection - When running any command the output can be changed 
+		from the terminal window to an output file specified.
+		This feature is supported by built in commands and system commands.
+		The command is first typed then either '>' or '>>' is entered and followed
+		by an output file name. There are two key differences between '>' and '>>'.
+		When using '>' the output is sent to a file that does not exist or if it
+		does exist, everything will be overwritten. If '>>' is used it will still 
+		create a file if it does not exist or if it does exist it will append all
+		output to the end of the file.
+	Input Redirection - Input redirection is used by first entering a built in or 
+		system command. Then '<' is entered for specifying a input file name to be
+		used as input to the command that was entered first. It is very similar to
+		entering a command followed by other arguments except the arguments are 
+		contained in a file instead of input from the terminal.
+	Multiple Redirection - Multiple redirection is also possible. If input redirection
+		is used first, any output that would have been printed to the terminal can
+		then be specified to a file by using '>' or '>>' followed by a filename.
+	Piping - Piping can be used to take the output of the first command as input to
+		the second command. This is possible by entering the first command followed
+		by a '|' and then followed by the second command.
+
+Built-in Commands (commands specific to the my shell program): 
+	cd - The cd command can be stands for change directory. When used without a 
+		directory location or any or any other arguments after typing 'cd', 
+		it will simply print the current directory path. When used with a 
+		specific directory path, it will change the current directory to the 
+		one that was specified. It will work with the same shortcuts for 
+		directory changes as in other shells such as bash.
+	clr - The clr command will clear any text that is left on the screen and print
+		a new prompt.
+	dir - The dir command will print the current directories content names by 
+		typing 'dir'. If a specific path is specified after typing 'dir' 
+		it will print the contents of the directory path that was entered.
+	environ - The environ command will print all current and up to date environment
+		variables by typing 'environ'.
+	echo - The echo command will repeat anything that is typed after 'echo' is 
+		entered. It will be printed on a new line. If nothing is typed after 
+		the command it will print a new line and the shell will continue.
+	help - The help command will display the current readme file. It will display 
+		exactly enough text to fill the size of the terminal window. Instead 
+		of scrolling enter is pressed to advance to the next page.
+	pause - The pause command will stop the program and stop printing to the prompt 
+		until the enter key is pressed.
+	quit - The quit command is used to exit the program. An alternative can be 
+		exit or terminating the program using system shortcuts.
+	path - The path command is used to set the PATH environment variable. 
+		If nothing is entered after 'path' is typed it will reset the PATH 
+		to contain no variables. It can accept more than one path specified after 
+		'path' is typed and will separate the paths accordingly. The initial PATH
+		variable is '/bin' when the program starts.
