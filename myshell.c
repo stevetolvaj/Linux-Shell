@@ -32,8 +32,8 @@ void check_parsed(char **args);
 int redirect(char **args, int position);
 int redirect_append(char **args, int position);
 int _redirect_input(char **args, int *position);
-int _execute(char **args, int *position);
-void remove_args(char **args, int position);
+int _execute(char **args, int *position, int waitFlag);
+
 int run_builtins(char **args);
 int builtin_redirect(char **args);
 int _run_pipe(char **args, int *position);
@@ -163,7 +163,13 @@ void check_parsed(char **args) {
                 write(STDERR_FILENO,error_message,strlen(error_message));
             }
             found_special = 1;
-        }  
+        }  else if(strcmp(args[i], "&") == 0) {
+            found_special = 1;
+            args[i] = NULL;
+            if (_execute(args, &i, 0) == -1) {
+            write(STDERR_FILENO,error_message,strlen(error_message));
+        }
+        }
         i++; // Increment while checking each arg until end of args is reached.
     }
 
@@ -171,7 +177,7 @@ void check_parsed(char **args) {
     if (!found_special)
     {
         // update the position of i passed in by reference so same args are not searched and ran again.
-        if (_execute(args, &i) == -1) {
+        if (_execute(args, &i, 1) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
         }
     }
@@ -391,25 +397,37 @@ int _redirect_input(char **args, int *position) {
 
 /**
  * The _execute function will fork and create a child process for the
- * execution of arguments. Only used when redirection or piping is not needed.
+ * execution of arguments, also supports one background proccess/background process
+ * followed by another process. Only used when redirection or piping is not needed.
  * 
  * @param args The line of arguments from user input.
  * @param position The position of the first null located in args,
  * this position may be updated in function.
+ * @param waitFlag Flag set to 1 if there should be wait after child execution.
+ * 0 if there should be no wait and "&" was found in args.
  * 
  * @return Will return -1 if failure occurred or 0 if successful.
 **/
-int _execute(char **args, int *position) {
-  
-    // Testing for running in background.
-    int should_wait = 1;
-    // If last arg is '&' set should wait to 0 and '&' to null.
-    if (args[*position - 1] != NULL && strcmp(args[*position - 1], "&") == 0) {
-        should_wait = 0;
-        args[*position - 1] = NULL;
+int _execute(char **args, int *position, int waitFlag) {
+
+        // Split args after & character into seperate array.
+    
+    char *args2[MAX_ARGS];
+    int i = 0;
+    if(waitFlag == 0 && args[*position + 1] != NULL) {
+     
+        // Split second part after pipe character.
+        i = 0;
+        *position = *position + 1;
+        while(args[*position] != NULL) {
+            args2[i] = args[*position];
+            i++;
+            *position = *position + 1;
+        }
+
+        args2[i] = NULL; // Set last arg to null.
     }
-    // Check if it is a built in command. Does not matter if it is redirectable by the time
-    // it reaches this function.
+   
     if(builtin_redirect(args) == 1 || builtin_redirect(args) == 2) {
         run_builtins(args);
     } else {
@@ -426,15 +444,16 @@ int _execute(char **args, int *position) {
      
         exit(0);
     } else {    // No '&' found so wait.
-         if (should_wait == 1){
+        
+         if (waitFlag == 1){
               waitpid(rc, NULL, 0);
-         } else {   // '&' found, do not wait.
-            int c;
-            while ((c = getchar()) != '\n' && c != EOF) { }
-            // If enter is pressed print return message and kill child process.
-            printf("Returned from background process %d\n", rc);
-            // Terminate child process
-            kill(rc, SIGKILL);
+         } else {  // & was found so run through execute again but wait.
+                printf("args2 is here.\n");
+        
+                if(args2 != NULL && args2[0] != NULL) {
+                    // If arg2 contains more args run through again with wait.
+                   _execute(args2, position, 1);
+                }
             }
          } 
     }
