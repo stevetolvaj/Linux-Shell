@@ -166,8 +166,6 @@ int print_help() {
     } else {
         waitpid(rc, NULL, 0);
     }
-    
-    
     return 0;
 }
 
