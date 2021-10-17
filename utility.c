@@ -151,7 +151,7 @@ int print_help() {
     // Copy path to new char array to avoid changing environment variable.
     strcpy(help_location, shell_path);
     // Concat on the name of the help file.
-    strcat(help_location, "/readme");
+    strcat(help_location, "/readme_doc");
 
     char *arg[3] = {"more", help_location, NULL};
 
