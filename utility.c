@@ -155,6 +155,7 @@ int print_help() {
 
     char *arg[3] = {"more", help_location, NULL};
 
+    // Run readme_doc through more filter tool.
     int rc = fork();
 
     if (rc < 0) {

@@ -410,11 +410,11 @@ int _redirect_input(char **args, int *position) {
 int _execute(char **args, int *position, int waitFlag) {
 
         // Split args after & character into seperate array.
-    
+    int args2Found = 0;     // Flag for multiple background execution
     char *args2[MAX_ARGS];
     int i = 0;
     if(waitFlag == 0 && args[*position + 1] != NULL) {
-     
+        args2Found = 1;
         // Split second part after pipe character.
         i = 0;
         *position = *position + 1;
@@ -423,7 +423,7 @@ int _execute(char **args, int *position, int waitFlag) {
             i++;
             *position = *position + 1;
         }
-
+    
         args2[i] = NULL; // Set last arg to null.
     }
    
@@ -447,9 +447,9 @@ int _execute(char **args, int *position, int waitFlag) {
          if (waitFlag == 1){
               waitpid(rc, NULL, 0);
          } else {  // & was found so run through execute again but wait.
-                printf("args2 is here.\n");
-        
-                if(args2 != NULL && args2[0] != NULL) {
+                
+               
+                if(args2Found == 1) {
                     // If arg2 contains more args run through again with wait.
                    _execute(args2, position, 1);
                 }
@@ -537,7 +537,7 @@ int builtin_redirect(char **args) {
  * The pipe function will pipe the arguments between the pipe character found in args.
  * 
  * @param args The arguments to pipe.
- * 
+ * @param position The position of the pipe character, Position updated to first null after pipe char.
  * @return 0 if succesfull or -1 if failure occured in parent process.
 **/
 int _run_pipe(char **args, int *position) {
@@ -575,7 +575,7 @@ int _run_pipe(char **args, int *position) {
     if (rc1 < 0) {
         return -1;
     }
-    if (rc1 == 0) {
+    if (rc1 == 0) { // Set first set of commands to output side of pipe.
         if(dup2(pipe_descriptor[1], STDOUT_FILENO) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
@@ -595,7 +595,7 @@ int _run_pipe(char **args, int *position) {
     if (rc2 < 0) {
         return -1;
     }
-    if (rc2 == 0) {
+    if (rc2 == 0) { // Set second set of args to read input from pipe and run commands.
         if(dup2(pipe_descriptor[0], STDIN_FILENO) == -1) {
             write(STDERR_FILENO,error_message,strlen(error_message));
             exit(1);
