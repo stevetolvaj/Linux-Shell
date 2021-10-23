@@ -21,10 +21,11 @@
 #include<sys/wait.h>
 #include<string.h>
 #include<fcntl.h>
-#include"myshell.h"
+#include"myshell_h"
 
 #define MAX_ARGS 100
 
+// External environment variables used for environ built-in.
 extern char **environ;
 
 void parser(char *input, char **args);
@@ -33,7 +34,6 @@ int redirect(char **args, int position);
 int redirect_append(char **args, int position);
 int _redirect_input(char **args, int *position);
 int _execute(char **args, int *position, int waitFlag);
-
 int run_builtins(char **args);
 int builtin_redirect(char **args);
 int _run_pipe(char **args, int *position);
@@ -49,7 +49,6 @@ int main(int argc, char const *argv[])
     getcwd(direct,PATH_MAX);
     // Make and set new shell variable.
     setenv("shell", direct, 1);
-   
     // Your initial shell path should contain one directory '/bin' as per instructions.
     setenv("PATH","/bin", 1);
 
@@ -83,7 +82,7 @@ int main(int argc, char const *argv[])
         if(strchr(buff, '\n') != NULL) {
             buff[strlen(buff) - 1] = '\0';
         }
-        // If quit is typed exit with 0.
+        // If quit or exit is typed exit with 0.
         if (strcmp(buff, "quit") == 0 || strcmp(buff, "exit") == 0) {
             exit(0);
         }
