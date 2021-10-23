@@ -21,7 +21,7 @@
 #include<sys/wait.h>
 #include<string.h>
 #include<fcntl.h>
-#include"myshell_h"
+#include"myshell.h"
 
 #define MAX_ARGS 100
 

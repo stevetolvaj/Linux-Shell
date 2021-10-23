@@ -12,7 +12,7 @@
 #include<dirent.h>
 #include<string.h>
 #include<sys/ioctl.h>
-#include"myshell_h"
+#include"myshell.h"
 #include<sys/types.h>
 #include<sys/wait.h>
 
